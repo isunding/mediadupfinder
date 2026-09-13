@@ -119,10 +119,33 @@ select{background:var(--card);border:1px solid var(--border);border-radius:8px;p
 .pagination .pg-btn:disabled{opacity:.35;cursor:default}
 .pagination .pg-ellipsis{color:var(--muted);font-size:13px;padding:0 4px}
 
+/* R2 缩略图 */
+.thumb-toggle{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);cursor:pointer;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card)}
+.thumb-toggle input{accent-color:var(--accent);cursor:pointer}
+.file-thumb{width:120px;height:68px;object-fit:cover;border-radius:6px;background:var(--card2);border:1px solid var(--border);display:block}
+.file-thumb-ph{width:120px;height:68px;border-radius:6px;background:var(--card2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:20px}
+
+/* R5 导出预览 / R6 对比 模态框 */
+.modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px}
+.modal{background:var(--card);border:1px solid var(--border);border-radius:12px;max-width:920px;width:100%;max-height:82vh;display:flex;flex-direction:column;overflow:hidden}
+.modal h3{padding:16px 20px;border-bottom:1px solid var(--border);font-size:16px}
+.modal .modal-body{padding:16px 20px;overflow-y:auto;font-size:13px}
+.modal .modal-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+.modal table{width:100%;border-collapse:collapse;font-size:12px}
+.modal table th,.modal table td{padding:6px 8px;border-bottom:1px solid rgba(45,54,80,.5);text-align:left;word-break:break-all}
+.modal .sum{margin-bottom:12px;color:var(--muted);line-height:1.8}
+.modal .sum b{color:var(--red)}
+
 @media(max-width:768px){
   .header{padding:14px}
   .container{padding:14px}
   .stat-card .value{font-size:20px}
+  .toolbar .search{min-width:100%}
+  .toolbar select,.toolbar .btn{font-size:12px}
+  .file-table .col-dur,.file-table .col-res,.file-table .col-br{display:none}
+  .action-bar{padding:10px 14px}
+  .action-bar .info{width:100%;font-size:12px}
+  .file-thumb,.file-thumb-ph{width:84px;height:48px}
 }
 </style>
 </head>
@@ -165,6 +188,11 @@ select{background:var(--card);border:1px solid var(--border);border-radius:8px;p
       <option value="mid">中候选</option>
       <option value="weak">弱候选</option>
     </select>
+    <select id="sortBy" title="排序方式">
+      <option value="wasted">按浪费空间排序</option>
+      <option value="files">按文件数排序</option>
+      <option value="avg">按平均浪费排序</option>
+    </select>
     <select id="keepStrategy" title="推荐保留策略">
       <option value="res_br_size">分辨率 → 码率 → 大小（默认）</option>
       <option value="size_res_br">大小 → 分辨率 → 码率（大文件优先）</option>
@@ -173,9 +201,14 @@ select{background:var(--card);border:1px solid var(--border);border-radius:8px;p
       <option value="br_size_res">码率 → 大小 → 分辨率</option>
       <option value="size_br_res">大小 → 码率 → 分辨率</option>
     </select>
+    <button class="btn btn-sm" onclick="markAllGroups()" title="对全部组执行「除保留外全选」">☑️ 全部组除保留外全选</button>
     <button class="btn btn-sm" onclick="expandAll()">全部展开</button>
     <button class="btn btn-sm" onclick="collapseAll()">全部折叠</button>
     <button class="btn btn-sm btn-danger" onclick="clearAllMarks()">清空标记</button>
+    <label class="thumb-toggle" title="用 FFmpeg 抽帧显示缩略图"><input type="checkbox" id="showThumb"> 🖼️ 缩略图</label>
+    <button class="btn btn-sm" onclick="diffWithPrevious()" title="与上一次扫描结果对比">🔀 对比上次扫描</button>
+    <button class="btn btn-sm" onclick="saveBookmark()" title="把当前结果存为书签">⭐ 存为书签</button>
+    <select id="bookmarkSel" title="打开已存书签" style="display:none"><option value="">📑 书签…</option></select>
   </div>
 
   <div id="groups"></div>
@@ -202,6 +235,7 @@ const PAGE_SIZE = 50;
 
 let groups = [], filteredGroups = [], marked = new Set(), EXPANDED = new Set();
 let currentPage = 1;
+let CURRENT = { taskId: '', name: '', path: '' };   // 当前结果标识（书签 / 对比用）
 
 function fmtSize(b){
   if(b>=GB) return (b/GB).toFixed(2)+' GB';
@@ -235,6 +269,7 @@ function showProgress(){ document.getElementById('progressWrap').style.display='
 function hideProgress(){ document.getElementById('progressWrap').style.display='none'; }
 
 function pickFile(file){
+  CURRENT = { taskId: '', name: file.name, path: '' };
   document.getElementById('fileName').textContent = '· '+file.name+' ('+fmtSize(file.size)+')';
   showProgress();
   setProgress(0, '初始化...');
@@ -325,7 +360,7 @@ function handleParsed(data, file, workerType){
       for(const g of arr){ g.cat = cat; merged.push(g); }
     }
   }
-  groups = merged.sort((a,b)=>b.wasted_bytes - a.wasted_bytes);
+  groups = merged;
 
   const banner = document.getElementById('warnBanner');
   banner.classList.remove('show');
@@ -345,6 +380,7 @@ function handleParsed(data, file, workerType){
   groups.forEach(g=>EXPANDED.add(g.group_id));
   initUI();
   renderAll();
+  renderBookmarkBar();
 }
 
 function resetUI(){
@@ -368,8 +404,11 @@ function initUI(){
   sel.onchange = renderGroups;
   document.getElementById('filterCat').onchange = renderGroups;
   document.getElementById('keepStrategy').onchange = ()=>{ recalcSuggested(); renderAll(); };
-  document.getElementById('stats').style.display='grid';
-  document.getElementById('toolbar').style.display='flex';
+  document.getElementById('sortBy').onchange = ()=>{ currentPage=1; renderGroups(); };
+  document.getElementById('showThumb').onchange = ()=>{ renderGroups(); };
+  document.getElementById('bookmarkSel').onchange = (e)=>{ if(e.target.value) openBookmark(e.target.value); };
+  document.getElementById('stats').style.display = 'grid';
+  document.getElementById('toolbar').style.display = 'flex';
   document.getElementById('stats').innerHTML = buildStats();
   document.getElementById('search').oninput = ()=>{ currentPage=1; renderGroups(); };
 }
@@ -416,11 +455,26 @@ function buildStats(){
   `;
 }
 
+function sortGroups(arr){
+  const mode = document.getElementById('sortBy') ? document.getElementById('sortBy').value : 'wasted';
+  const sorted = arr.slice();
+  if(mode === 'files'){
+    sorted.sort((a,b)=> (b.file_count||b.files.length) - (a.file_count||a.files.length) ||
+                        b.wasted_bytes - a.wasted_bytes);
+  }else if(mode === 'avg'){
+    const avg = g => g.files.length ? g.wasted_bytes / g.files.length : 0;
+    sorted.sort((a,b)=> avg(b) - avg(a));
+  }else{
+    sorted.sort((a,b)=> b.wasted_bytes - a.wasted_bytes);
+  }
+  return sorted;
+}
+
 function renderAll(){
   const kw = (document.getElementById('search').value||'').toLowerCase().trim();
   const reasonFilter = document.getElementById('filterReason').value;
   const catFilter = document.getElementById('filterCat').value;
-  filteredGroups = groups.filter(g=>{
+  filteredGroups = sortGroups(groups.filter(g=>{
     if(catFilter && g.cat !== catFilter) return false;
     if(reasonFilter && g.reason !== reasonFilter) return false;
     if(kw){
@@ -428,7 +482,7 @@ function renderAll(){
       if(!hay.includes(kw) && !g.group_id.toLowerCase().includes(kw)) return false;
     }
     return true;
-  });
+  }));
 
   const container = document.getElementById('groups');
   const pgEl = document.getElementById('pagination');
@@ -448,6 +502,7 @@ function renderAll(){
   let html = '';
   for(const g of slice) html += groupHTML(g);
   container.innerHTML = html;
+  initThumbs();
 
   renderPagination(totalPages);
   updateActionBar();
@@ -491,29 +546,35 @@ function gotoPage(p){
 
 function groupHTML(g){
   const isOpen = EXPANDED.has(g.group_id);
+  const showThumb = document.getElementById('showThumb') && document.getElementById('showThumb').checked;
   const filesHTML = g.files.map(f=>{
     const isKeep = f.path === g.suggested_keep;
     const isMarked = marked.has(f.path);
+    const enc = encodeURIComponent(f.path);
     return `<tr class="${isKeep?'keep-row':''} ${isMarked?'marked-del':''}">
       <td style="width:40px;padding:8px;text-align:center">
         ${isKeep?'<span class="keep-badge">保留</span>':''}
         ${isMarked?'<span class="marked-badge">删除</span>':''}
       </td>
+      ${showThumb?`<td style="width:130px">
+        <div class="file-thumb-ph" data-thumb-for="${enc}">🎞️</div>
+      </td>`:''}
       <td style="min-width:0">
-        <div class="file-name clickable" data-action="copy-file" data-path="${encodeURIComponent(f.path)}" title="点击复制完整文件路径">📄 ${f.name}</div>
-        <div class="file-path clickable" data-action="copy-folder" data-path="${encodeURIComponent(f.path)}" title="点击复制所在文件夹路径">📁 ${f.path}</div>
+        <div class="file-name clickable" data-action="copy-file" data-path="${enc}" title="点击复制完整文件路径">📄 ${f.name}</div>
+        <div class="file-path clickable" data-action="copy-folder" data-path="${enc}" title="点击复制所在文件夹路径">📁 ${f.path}</div>
       </td>
       <td><div class="meta"><span>📦 ${fmtSize(f.size)}</span></div></td>
-      <td><div class="meta"><span>⏱ ${fmtDuration(f.duration)}</span></div></td>
-      <td><div class="meta"><span>🖥 ${f.resolution}</span></div></td>
-      <td><div class="meta"><span>🎬 ${(f.video_bitrate/1000).toFixed(0)}k</span><span>🔊 ${(f.audio_bitrate/1000).toFixed(0)}k</span></div></td>
+      <td class="col-dur"><div class="meta"><span>⏱ ${fmtDuration(f.duration)}</span></div></td>
+      <td class="col-res"><div class="meta"><span>🖥 ${f.resolution}</span></div></td>
+      <td class="col-br"><div class="meta"><span>🎬 ${(f.video_bitrate/1000).toFixed(0)}k</span><span>🔊 ${(f.audio_bitrate/1000).toFixed(0)}k</span></div></td>
       <td style="text-align:right;white-space:nowrap">
         ${isMarked
-          ? `<button class="btn btn-sm btn-danger" data-action="toggle" data-path="${encodeURIComponent(f.path)}">✓ 已标记</button>`
+          ? `<button class="btn btn-sm btn-danger" data-action="toggle" data-path="${enc}">✓ 已标记</button>`
           : isKeep
-            ? `<button class="btn btn-check btn-sm" data-action="toggle" data-path="${encodeURIComponent(f.path)}" title="点击标记删除">✓ 推荐保留</button>`
-            : `<button class="btn btn-sm" data-action="toggle" data-path="${encodeURIComponent(f.path)}">标记删除</button>`
+            ? `<button class="btn btn-check btn-sm" data-action="toggle" data-path="${enc}" title="点击标记删除">✓ 推荐保留</button>`
+            : `<button class="btn btn-sm" data-action="toggle" data-path="${enc}">标记删除</button>`
         }
+        <button class="btn btn-sm btn-ghost" data-action="open-file" data-path="${enc}" title="在文件管理器中打开">📂</button>
       </td>
     </tr>`;
   }).join('');
@@ -538,11 +599,41 @@ function groupHTML(g){
     <div class="group-body">
       <div class="keep-suggest"><span class="label">💡 建议保留：</span><span class="path">${g.suggested_keep}</span></div>
       <table class="file-table">
-        <thead><tr><th></th><th>文件</th><th>大小</th><th>时长</th><th>分辨率</th><th>码率</th><th style="width:110px">操作</th></tr></thead>
+        <thead><tr><th></th>${showThumb?'<th>预览</th>':''}<th>文件</th><th>大小</th><th class="col-dur">时长</th><th class="col-res">分辨率</th><th class="col-br">码率</th><th style="width:150px">操作</th></tr></thead>
         <tbody>${filesHTML}</tbody>
       </table>
     </div>
   </div>`;
+}
+
+/* R2：缩略图懒加载（进入视口才请求 FFmpeg 抽帧） */
+let _thumbObserver = null;
+function initThumbs(){
+  if(!document.getElementById('showThumb') || !document.getElementById('showThumb').checked) return;
+  const nodes = document.querySelectorAll('[data-thumb-for]');
+  if(!nodes.length) return;
+  if(!('IntersectionObserver' in window)){
+    nodes.forEach(n=>loadThumb(n));
+    return;
+  }
+  if(_thumbObserver) _thumbObserver.disconnect();
+  _thumbObserver = new IntersectionObserver((entries, obs)=>{
+    entries.forEach(en=>{
+      if(en.isIntersecting){ loadThumb(en.target); obs.unobserve(en.target); }
+    });
+  }, {rootMargin:'200px'});
+  nodes.forEach(n=>_thumbObserver.observe(n));
+}
+function loadThumb(node){
+  const p = decodeURIComponent(node.dataset.thumbFor);
+  delete node.dataset.thumbFor;
+  const img = document.createElement('img');
+  img.className = 'file-thumb';
+  img.loading = 'lazy';
+  img.alt = '';
+  img.src = '/api/thumb?path=' + encodeURIComponent(p);
+  img.onerror = ()=>{ img.replaceWith(node); };
+  node.replaceWith(img);
 }
 
 document.getElementById('groups').addEventListener('click', e=>{
@@ -579,6 +670,13 @@ document.getElementById('groups').addEventListener('click', e=>{
     const g = groups.find(x=>x.group_id===gid);
     if(g) g.files.forEach(f=>{ if(f.path !== g.suggested_keep) marked.add(f.path); });
     renderGroups();
+  }else if(action==='open-file'){
+    const p = decodeURIComponent(btn.dataset.path);
+    fetch('/api/open', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({path: p, reveal: true})})
+      .then(r=>r.json()).then(res=>{
+        if(!res.ok) showToast('打开失败：'+(res.error||'未知错误'));
+      }).catch(()=>showToast('打开失败（离线页面不支持）'));
   }else if(action==='copy-file' || action==='copy-folder'){
     const p = decodeURIComponent(btn.dataset.path);
     const target = action==='copy-folder'
@@ -611,6 +709,18 @@ function showToast(msg){
 function expandAll(){ document.querySelectorAll('.group').forEach(g=>{g.classList.add('open');EXPANDED.add(g.dataset.gid)}); }
 function collapseAll(){ document.querySelectorAll('.group').forEach(g=>{g.classList.remove('open');EXPANDED.delete(g.dataset.gid)}); }
 function clearAllMarks(){ marked.clear(); renderGroups(); }
+/* R1：对全部组批量执行「除保留外全选」 */
+function markAllGroups(){
+  if(!groups.length) return;
+  let added = 0;
+  groups.forEach(g=>{
+    g.files.forEach(f=>{
+      if(f.path !== g.suggested_keep && !marked.has(f.path)){ marked.add(f.path); added++; }
+    });
+  });
+  renderGroups();
+  showToast(`已标记 ${added.toLocaleString()} 个文件（保留每组建议保留项）`);
+}
 function renderGroups(){ renderAll(); }
 
 function updateActionBar(){
@@ -635,7 +745,35 @@ function getMarkedFiles(){
   return r;
 }
 
+/* R5：导出前 Dry-run 预览模态框 */
+function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function showModal(title, bodyHTML, footHTML){
+  closeModal();
+  const mask = document.createElement('div');
+  mask.className = 'modal-mask';
+  mask.id = 'modalMask';
+  mask.innerHTML = `<div class="modal"><h3>${title}</h3>
+    <div class="modal-body">${bodyHTML}</div>
+    <div class="modal-foot">${footHTML}</div></div>`;
+  mask.addEventListener('click', e=>{ if(e.target === mask) closeModal(); });
+  document.body.appendChild(mask);
+}
+function closeModal(){ const m = document.getElementById('modalMask'); if(m) m.remove(); }
+
 function exportOpenScript(os){
+  const list = getMarkedFiles();
+  if(list.length===0){ alert('还没有标记任何文件'); return; }
+  const label = {py:'Open .py', bat:'Open .bat', sh:'Open .sh'}[os] || os;
+  const rows = list.slice(0,500).map((f,i)=>`<tr><td>${i+1}</td><td>${esc(f.name)}</td><td>${esc(f.path)}</td></tr>`).join('');
+  const more = list.length>500 ? `<div class="sum">仅预览前 500 条，脚本仍会包含全部 ${list.length.toLocaleString()} 条。</div>` : '';
+  showModal(`🧪 预览 · 生成 ${label}`,
+    `<div class="sum">将生成脚本，在文件管理器中逐个定位 <b>${list.length.toLocaleString()}</b> 个已标记文件。<br>脚本只做定位，不会删除任何文件。</div>
+     ${more}<table><thead><tr><th>#</th><th>文件</th><th>路径</th></tr></thead><tbody>${rows}</tbody></table>`,
+    `<button class="btn" onclick="closeModal()">取消</button>
+     <button class="btn btn-primary" onclick="closeModal();doExportOpenScript('${os}')">确认并下载</button>`);
+}
+
+function doExportOpenScript(os){
   const list = getMarkedFiles();
   if(list.length===0){ alert('还没有标记任何文件'); return; }
   let content='', ext='', mime='';
@@ -711,6 +849,20 @@ input("按回车退出...")
 function exportList(format){
   const list = getMarkedFiles();
   if(list.length===0){ alert('还没有标记任何文件'); return; }
+  const total = list.reduce((s,f)=>s+f.size,0);
+  const name = {txt:'TXT', csv:'CSV', json:'JSON'}[format] || String(format).toUpperCase();
+  const rows = list.slice(0,500).map((f,i)=>`<tr><td>${i+1}</td><td>${esc(f.name)}</td><td>${esc(f.path)}</td><td>${fmtSize(f.size)}</td></tr>`).join('');
+  const more = list.length>500 ? `<div class="sum">仅预览前 500 条，实际导出 ${list.length.toLocaleString()} 条。</div>` : '';
+  showModal(`🧪 Dry-run 预览 · 导出 ${name}`,
+    `<div class="sum">共 <b>${list.length.toLocaleString()}</b> 个文件将写入清理清单，合计 <b>${fmtSize(total)}</b>。<br>本步骤只生成清单文件，不会删除任何文件。</div>
+     ${more}<table><thead><tr><th>#</th><th>文件</th><th>路径</th><th>大小</th></tr></thead><tbody>${rows}</tbody></table>`,
+    `<button class="btn" onclick="closeModal()">取消</button>
+     <button class="btn btn-primary" onclick="closeModal();doExportList('${format}')">确认并下载 ${name}</button>`);
+}
+
+function doExportList(format){
+  const list = getMarkedFiles();
+  if(list.length===0){ alert('还没有标记任何文件'); return; }
   let content='', mime='', ext='';
   if(format==='txt'){
     content = list.map((f,i)=>`#${i+1}  [${f.group_id}]  ${f.name}\n${f.path}\n# ${fmtSize(f.size)}  ${fmtDuration(f.duration)}  ${f.resolution}\n`).join('\n');
@@ -731,6 +883,129 @@ function exportList(format){
   a.click();
   URL.revokeObjectURL(a.href);
 }
+
+/* ================= R6 跨扫描对比 ================= */
+function groupSignature(g){
+  return (g.files || []).map(f=>f.path).sort().join('\n');
+}
+function mergeCandidates(data){
+  const merged = [];
+  const catMap = {strong_candidates:'strong', mid_candidates:'mid', weak_candidates:'weak'};
+  for(const [key, cat] of Object.entries(catMap)){
+    const arr = data[key];
+    if(Array.isArray(arr)) for(const g of arr){ g.cat = cat; merged.push(g); }
+  }
+  return merged;
+}
+function loadResultByTask(taskId){
+  return fetch('/api/history/' + encodeURIComponent(taskId) + '/result')
+    .then(r=>r.json()).then(res=>{
+      if(!res.ok) throw new Error(res.error || '加载失败');
+      return { data: res.data, item: res.item || {} };
+    });
+}
+function diffWithPrevious(){
+  if(!groups.length){ alert('请先加载扫描结果'); return; }
+  fetch('/api/history').then(r=>r.json()).then(h=>{
+    const items = (h.items || []).filter(it=>it.available && it.task_id !== CURRENT.taskId);
+    if(!items.length){ alert('没有可对比的历史结果（需要至少两次扫描）'); return; }
+    const prev = items[0];
+    return loadResultByTask(prev.task_id).then(({data, item})=>{
+      const prevGroups = mergeCandidates(data);
+      const prevSig = new Set(prevGroups.map(groupSignature));
+      const curSig = new Set(groups.map(groupSignature));
+      const newGroups = groups.filter(g=>!prevSig.has(groupSignature(g)));
+      const goneGroups = prevGroups.filter(g=>!curSig.has(groupSignature(g)));
+      renderDiffModal(prev, item, newGroups, goneGroups);
+    });
+  }).catch(err=>alert('对比失败：'+err.message));
+}
+function renderDiffModal(prev, item, newGroups, goneGroups){
+  const newWasted = newGroups.reduce((s,g)=>s+(g.wasted_bytes||0),0);
+  const newRows = newGroups.slice(0,200).map((g,i)=>
+    `<tr><td>${i+1}</td><td>${esc(g.group_id)}</td><td>${esc(g.reason||'')}</td><td>${g.files.length}</td><td>${fmtSize(g.wasted_bytes)}</td><td>${esc(g.files[0]?g.files[0].name:'')}</td></tr>`).join('');
+  const goneRows = goneGroups.slice(0,100).map(g=>
+    `<tr><td>${esc(g.group_id)}</td><td>${esc(g.reason||'')}</td><td>${fmtSize(g.wasted_bytes)}</td></tr>`).join('');
+  showModal(`🔀 跨扫描对比 · 本次 vs ${esc(String(prev.start_time||'').replace('T',' '))}`,
+    `<div class="sum">
+       对比基准任务：${esc(prev.task_id)}<br>
+       本次<b>新增重复组 ${newGroups.length.toLocaleString()}</b> 组，新增可释放 <b>${fmtSize(newWasted)}</b><br>
+       上次有、本次已消失：${goneGroups.length.toLocaleString()} 组
+     </div>
+     <h4 style="margin:10px 0 6px">🆕 新增重复组${newGroups.length>200?'（仅列前 200 条）':''}</h4>
+     ${newGroups.length?`<table><thead><tr><th>#</th><th>分组</th><th>原因</th><th>文件数</th><th>浪费</th><th>示例文件</th></tr></thead><tbody>${newRows}</tbody></table>`
+       :'<div class="sum">没有新增重复组。</div>'}
+     ${goneGroups.length?`<h4 style="margin:14px 0 6px">✅ 已消失的组${goneGroups.length>100?'（仅列前 100 条）':''}</h4>
+       <table><thead><tr><th>分组</th><th>原因</th><th>浪费</th></tr></thead><tbody>${goneRows}</tbody></table>`:''}`,
+    `<button class="btn" onclick="closeModal()">关闭</button>`);
+}
+
+/* ================= Q2 结果书签 ================= */
+const BOOKMARK_KEY = 'mdf_bookmarks_v1';
+function loadBookmarks(){ try{ return JSON.parse(localStorage.getItem(BOOKMARK_KEY) || '[]'); }catch(e){ return []; } }
+function saveBookmarks(list){ localStorage.setItem(BOOKMARK_KEY, JSON.stringify(list)); }
+function saveBookmark(){
+  if(!groups.length){ alert('请先加载扫描结果'); return; }
+  const key = CURRENT.taskId || CURRENT.path || CURRENT.name;
+  if(!key){ alert('当前结果没有可复用的标识，无法存为书签'); return; }
+  const label = prompt('书签名称：', CURRENT.name || CURRENT.taskId || '扫描结果');
+  if(!label) return;
+  const entry = { key, label, taskId: CURRENT.taskId, path: CURRENT.path, name: CURRENT.name,
+                  groups: groups.length,
+                  time: new Date().toLocaleString('sv-SE', {hour12:false}) };
+  const list = loadBookmarks();
+  const idx = list.findIndex(b=>b.key===key);
+  if(idx >= 0) list[idx] = entry; else list.unshift(entry);
+  saveBookmarks(list.slice(0, 50));
+  renderBookmarkBar();
+  showToast('已存为书签');
+}
+function renderBookmarkBar(){
+  const sel = document.getElementById('bookmarkSel');
+  if(!sel) return;
+  const list = loadBookmarks();
+  sel.style.display = list.length ? 'inline-block' : 'none';
+  sel.innerHTML = '<option value="">📑 书签…</option>'
+    + list.map(b=>`<option value="${esc(b.key)}">${esc(b.label)}（${b.groups} 组）</option>`).join('');
+}
+function openBookmark(key){
+  const b = loadBookmarks().find(x=>x.key === key);
+  if(!b) return;
+  if(b.taskId) loadResultByTask(b.taskId).then(({data, item})=>{
+    applyResultData(data, item.result_name || b.name, item.result_path || b.path, b.taskId);
+  }).catch(err=>alert('打开书签失败：'+err.message));
+  else if(b.path) loadFromApi(b.path);
+  else alert('该书签缺少可重新加载的标识');
+}
+
+/* ================= 结果加载 ================= */
+function loadFromApi(path){
+  const url = '/api/result' + (path ? '?path=' + encodeURIComponent(path) : '');
+  fetch(url).then(r=>r.json()).then(res=>{
+    if(res.ok && res.data) applyResultData(res.data, res.name, res.path, res.task_id);
+    else renderBookmarkBar();
+  }).catch(()=>renderBookmarkBar());
+}
+function applyResultData(data, name, path, taskId){
+  CURRENT = { taskId: taskId || '', name: name || '', path: path || '' };
+  const fakeFile = { size: JSON.stringify(data).length, name: name || 'dup_result.json' };
+  handleParsed(data, fakeFile, 'api');
+  document.getElementById('fileName').textContent = '· 已从后端加载结果' + (name ? ' · '+name : '');
+}
+
+(function initResultPage(){
+  if(window.location.protocol === 'file:'){ renderBookmarkBar(); return; }
+  const qs = new URLSearchParams(window.location.search);
+  const taskId = qs.get('task');
+  const resultPath = qs.get('path');
+  if(taskId){
+    loadResultByTask(taskId).then(({data, item})=>
+      applyResultData(data, item.result_name, item.result_path, taskId)
+    ).catch(err=>{ alert('加载历史结果失败：'+err.message); loadFromApi(); });
+    return;
+  }
+  loadFromApi(resultPath);
+})();
 </script>
 </body>
 </html>

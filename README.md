@@ -11,9 +11,15 @@
 - **多格式输出**：JSON（默认带时间戳 `dup_result_YYYYMMDD_HHMMSS.json`，避免覆盖）+ CSV + HTML，`--dry-run` 只打印不写文件
 - **Web 可视化界面**：`index.html` 浏览器直接打开，拖拽导入 JSON，Worker 异步解析超大文件、分页浏览（13 万组也流畅）、6 套推荐保留策略实时切换、分类筛选、导出删除清单
 - **多排除关键字**：`--exclude-dir` 可多次指定，空串显式关闭
+- **扩展名白/黑名单**：`--ext mp4,mkv` 只扫指定后缀，`--exclude-ext ts` 跳过指定后缀
+- **分档开关**：`--no-strong / --no-mid / --no-weak`，只跑某一档候选，大文件时可跳过弱候选加速
+- **增量扫描**：元数据按 `path + size + mtime` 缓存（`--cache-file` / `--no-cache`），重复扫描只解析新增/修改文件
+- **采样预览**：`--preview` 先枚举候选并估算耗时，确认后再实际解析
+- **路径白名单**：`--allow-root D:\` 限制只能扫指定盘，防止误扫系统盘
 - **可控并发**：`--workers N` 指定线程池大小，`tqdm` 进度条（若已安装）
 - **失败溯源**：读取失败记录原因（`parse_error / no_tracks / missing_file_size / missing_duration`），结束时按原因聚合计数
 - **跨平台**：Windows 盘符扫描（`--drives G-U`），macOS / Linux 文件夹模式
+- **Web 服务 `web.py`**：Flask + SSE 实时进度，配置页 + 进度页 + 结果页三页联动；支持暂停/继续/取消、任务历史、HTTP 基础认证、单实例锁、日志落盘、扫描期间阻止休眠
 
 ---
 
@@ -35,6 +41,11 @@
   - [快速使用](#快速使用)
   - [功能特性](#功能特性)
   - [文件说明](#文件说明)
+- [Web 服务（web.py）](#web-服务webpy)
+  - [启动](#启动)
+  - [配置页功能](#配置页功能)
+  - [进度与状态](#进度与状态)
+  - [API 一览](#api-一览)
 - [性能与库模式](#性能与库模式)
 - [常见问题](#常见问题)
 
@@ -60,7 +71,13 @@ pip install tqdm
 
 > 若系统只装了 CLI 而没装库，`pymediainfo` 会退化为每个文件起一个子进程，线程池收益会明显下降。建议安装库版本以获得最佳性能。
 
-脚本本身只有一个文件，直接下载 `mediadupfinder.py` 即可。
+可选依赖：
+
+- **`tqdm`**：命令行进度条
+- **`flask` + `flask-cors`**：运行 `web.py` Web 服务
+- **`ffmpeg`**：Web 结果页的预览缩略图（未安装时显示占位图，不影响其他功能）
+
+脚本本身只有一个文件，直接下载 `mediadupfinder.py` 即可（Web 模式还需 `web.py` / `web_index.html` / `index.html` / `worker-*.js`）。
 
 ---
 
@@ -94,6 +111,31 @@ python mediadupfinder.py --drives G-U ^
 
 ```bash
 python mediadupfinder.py /some/folder --dry-run
+```
+
+只扫指定后缀 + 跳过弱候选（大文件时更快）：
+
+```bash
+python mediadupfinder.py --drives G-U --ext mp4,mkv --exclude-ext ts --no-weak
+```
+
+先采样预览再决定是否解析：
+
+```bash
+python mediadupfinder.py --drives G-U --preview
+```
+
+限制只能扫指定盘（防误扫系统盘）：
+
+```bash
+python mediadupfinder.py --drives C-U --allow-root "D:\\" --allow-root "E:\\"
+```
+
+启动 Web 界面（推荐，配置/进度/结果三页联动）：
+
+```bash
+python web.py
+# 然后浏览器打开 http://localhost:5000
 ```
 
 ---
@@ -161,15 +203,33 @@ score = (width × height, video_bitrate + audio_bitrate, size, duration)
 | `--weak-duration-tol N` | `2.0` | 弱候选时长容差（秒） |
 | `--name-sim N` | `0.8` | 中候选文件名相似度阈值（0~1） |
 | `--exclude-dir KEY` | 默认排除 `CHN` | 忽略名称含该关键字的文件夹，**可多次指定**；传 `--exclude-dir ''` 显式关闭 |
+| `--ext LIST` | 不限 | 只扫描指定后缀，逗号/分号/空格分隔，如 `--ext mp4,mkv`（可加非媒体后缀，如 `--ext txt`） |
+| `--exclude-ext LIST` | 无 | 跳过指定后缀，如 `--exclude-ext ts,rmvb` |
+| `--allow-root PATH` | 无 | 路径白名单，**可多次指定**；只允许扫描这些根路径下的文件，防止误扫系统盘 |
+
+### 分档与缓存
+
+| 参数 | 默认 | 说明 |
+|------|------|------|
+| `--no-strong` | `false` | 跳过强候选分组（大小相同 + 时长相近） |
+| `--no-mid` | `false` | 跳过中候选分组（文件名相似 / 相同） |
+| `--no-weak` | `false` | 跳过弱候选分组（时长接近 + 分辨率相同 + 大小不同），大文件扫描时可显著加速 |
+| `--cache-file PATH` | `.mdf_cache.json` | 元数据缓存文件路径 |
+| `--no-cache` | `false` | 禁用元数据缓存，每次全量解析 |
+| `--preview` | `false` | 只做采样预览：枚举候选文件并估算耗时，不做实际解析 |
+
+> **增量扫描**：默认启用元数据缓存，按 `path + size + mtime` 命中即跳过解析（`MediaInfo` 调用是最耗时的一环）。只修改过或新增的文件会被重新解析，重复扫描同一目录时速度大幅提升。
 
 ### 并发与输出
 
 | 参数 | 默认 | 说明 |
 |------|------|------|
 | `--workers N` | `min(16, cpu×2)` | 元数据解析线程数 |
-| `-o, --output PATH` | `dup_result.json` | JSON 输出路径 |
+| `-o, --output PATH` | `dup_result_YYYYMMDD_HHMMSS.json` | JSON 输出路径 |
 | `--csv PATH` | 不输出 | 额外输出 CSV |
 | `--html PATH` | 不输出 | 额外输出 HTML 可视化报告 |
+| `--no-csv` | `false` | 跳过 CSV 输出 |
+| `--no-html` | `false` | 跳过 HTML 输出 |
 | `--dry-run` | `false` | 只打印控制台摘要，不写任何结果文件 |
 
 ---
@@ -266,16 +326,94 @@ video_bitrate | audio_bitrate | format
 | **分组分类** | 每组 header 显示彩色分类 badge |
 | **折叠 / 展开** | 全部展开 / 全部折叠，记住手动展开的组 |
 | **推荐保留策略** | 下拉切换 6 套打分方案（分辨率→码率→大小 / 大小优先 / 码率优先…），实时重算高亮 |
-| **智能标记** | 一键"除推荐保留外全选删除"，或逐组手动切换 |
+| **智能标记** | 一键"除推荐保留外全选删除"，或逐组手动切换；工具栏支持对**所有组**批量执行 |
+| **排序切换** | 顶部按「浪费空间 / 平均浪费」排序；默认浪费空间降序 |
+| **预览缩略图** | 勾选后由后端 FFmpeg 抽帧（5s 处）生成缩略图并缓存，未装 FFmpeg 时显示占位图 |
+| **打开文件 / 定位** | 每行「📂 打开」调用系统文件管理器定位到该文件 |
+| **导出 Dry-run 预览** | 导出删除清单前先弹确认列表（前 500 条），确认后再下载 |
+| **跨扫描对比** | 与上一次扫描结果 diff，显示新增重复组与新增可释放空间 |
+| **结果书签** | 结果页「存为书签」，下次从下拉直接打开对应 JSON |
 | **删除清单导出** | 标记后可导出 TXT / CSV / JSON 三种格式 |
+| **移动端适配** | 窄屏自动隐藏次要列、缩略图缩小，结果页在手机上可正常浏览 |
 
 ### 文件说明
 
 | 文件 | 作用 |
 |------|------|
-| `index.html` | 主界面，单文件含全部 HTML / CSS / 主线程 JS |
+| `index.html` | 结果页，单文件含全部 HTML / CSS / 主线程 JS |
 | `worker-json.js` | Worker，`file.text()` + `JSON.parse`，结果一次性返回主线程 |
 | `worker-stream.js` | 大文件 Worker（≥ 200MB），同样走 `JSON.parse`（Worker 里跑不阻塞主线程） |
+
+---
+
+## Web 服务（web.py）
+
+`web.py` 是 Flask 后端，提供配置页（`web_index.html`）、进度推送（SSE）与结果页（`index.html`）三页联动的完整 Web 体验。适用于不想敲命令行的场景。
+
+### 启动
+
+```bash
+# 最简：默认监听 0.0.0.0:5000
+python web.py
+
+# 只允许扫描 D 盘和 E 盘 + 开启认证 + 换端口
+python web.py --port 8080 --allow-root D:\ --allow-root E:\ --auth admin:secret
+```
+
+| 参数 | 默认 | 说明 |
+|------|------|------|
+| `--host` | `0.0.0.0` | 监听地址 |
+| `--port` | `5000` | 监听端口 |
+| `--allow-root PATH` | 无 | 路径白名单，可多次指定；不在白名单内的扫描请求会被拒绝 |
+| `--auth user:pass` | 无 | 开启 HTTP 基础认证，保护全部接口（部署到公网时强烈建议开启） |
+| `--no-lock` | `false` | 不创建单实例锁 `.web.lock` |
+| `--debug` | `false` | Flask 调试模式 |
+
+启动后访问 `http://localhost:5000`。页面右上角可下载 `web.bat`，双击即自动打开浏览器并启动服务（Windows）。
+
+> 运行时会在脚本目录生成：`scan_YYYYMMDD.log`（日志）、`.mdf_cache.json`（元数据缓存）、`.web.lock`（单实例锁）、`scan_history.json`（任务历史）、`_thumbs/`（缩略图缓存）。
+
+### 配置页功能
+
+- **配置预设**：顶部下拉保存/切换多套配置（"全盘快速扫"、"单盘精细扫"、"电影专用"…），存于浏览器 `localStorage`
+- **卡片级重置（↺）**：每张卡片单独恢复默认值
+- **实时校验**：路径、数值范围等边填边提示
+- **主题三态切换**：跟随系统 / 亮色 / 暗色
+- **中英双语**：页面右上角一键切换
+- **快捷键**：`Ctrl+Enter` 启动扫描，`Esc` 从进度页返回配置页
+- **采样预览**：勾选后先枚举候选并估算耗时，确认后再实际扫描
+- **服务端配置提示**：启动时读取 `/api/config`，展示白名单、是否开启认证、FFmpeg 是否可用
+
+### 进度与状态
+
+- **四段独立进度条**：`enumerate（枚举）→ parse（解析）→ grouping（分组）→ saving（保存）`
+- **实时速率与 ETA**：EMA 平滑的"文件/秒"与"预计剩余时间"
+- **当前盘符 / 文件**：parse 阶段显示"正在解析 G:\Videos 第 12345/50000 个：xxx.mkv"
+- **暂停 / 继续 / 取消**：通过 `ScanControl`（`threading.Event`）优雅停线程；取消后仍展示已解析的部分结果
+- **任务历史侧边栏**：列出历史任务及状态，点击直接打开旧结果，支持删除
+- **自动跳转**：扫描完成后自动进入结果页
+- **扫描期间阻止休眠**：Windows `SetThreadExecutionState`，Linux `systemd-inhibit`
+
+### API 一览
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `POST` | `/api/start` | 启动扫描任务 |
+| `POST` | `/api/pause` `/api/resume` `/api/cancel` | 暂停 / 继续 / 取消当前任务 |
+| `GET` | `/api/progress` | SSE 实时进度推送 |
+| `GET` | `/api/status` | 查询任务状态快照 |
+| `POST` | `/api/preview` | 启动采样预览 |
+| `GET` | `/api/preview_status` | 查询预览状态 |
+| `GET` | `/api/result` | 最近一次结果 JSON；`?path=dup_result_xxx.json` 指定文件 |
+| `GET` | `/api/download/<filename>` | 下载结果文件 |
+| `GET` | `/api/download_latest/<ext>` | 下载最近任务的 json / csv / html |
+| `GET` | `/api/history` | 历史任务列表 |
+| `GET` | `/api/history/<id>` | 单个历史任务元信息 |
+| `GET` | `/api/history/<id>/result` | 历史任务结果 JSON |
+| `DELETE` | `/api/history/<id>` | 删除历史记录 |
+| `GET` | `/api/thumb` | FFmpeg 抽帧生成缩略图（需装 FFmpeg） |
+| `POST` | `/api/open` | 在系统文件管理器中打开 / 定位文件 |
+| `GET` | `/api/config` | 服务端配置（白名单、认证、FFmpeg 可用性） |
 
 ---
 
@@ -326,3 +464,15 @@ A: 它只在 **大小完全相同** 的桶内做并查集，合并条件是任�
 
 **Q: CSV 里 `suggested_keep` 是布尔值，Excel 显示 TRUE/FALSE 吗？**
 A: 是的。Excel 双击打开即可筛选 `TRUE` 行找到每组建议保留的文件。
+
+**Q: 为什么第二次扫描同一个目录快很多？**
+A: 元数据缓存（`.mdf_cache.json`）按 `path + size + mtime` 命中即跳过 MediaInfo 解析，只解析新增/修改的文件。想强制全量重解析可加 `--no-cache`；换缓存文件用 `--cache-file`。
+
+**Q: Web 结果页的缩略图显示不出来？**
+A: 需要系统已安装 `ffmpeg` 并在 `PATH` 中（或放在常见安装目录）。可在 `GET /api/config` 的 `ffmpeg` 字段确认是否被识别；未安装时缩略图位置显示占位图，其余功能不受影响。
+
+**Q: `--allow-root` 怎么用？不填会怎样？**
+A: 不填则不做限制（可扫描任意路径）。填写后只允许扫描白名单内的根路径及其子路径，其余请求会被拒绝并返回错误。适合把 Web 服务部署到公网时防止误扫系统盘。
+
+**Q: 部署到公网安全吗？**
+A: 建议同时开启 `--auth user:pass`（HTTP 基础认证）和 `--allow-root`（路径白名单），并仅在受信任网络内使用。`.web.lock` 会在脚本目录记录 PID，防止多开 Flask。

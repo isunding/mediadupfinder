@@ -11,6 +11,14 @@ dup_result.*
 *_report*.html
 *dumpresult*
 
+# web.py 运行时产物
+.mdf_cache.json
+.web.lock
+scan_history.json
+scan_*.log
+missing_files.log
+_thumbs/
+
 # OS
 .DS_Store
 Thumbs.db

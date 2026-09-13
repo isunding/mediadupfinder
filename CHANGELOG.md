@@ -2,6 +2,61 @@
 
 所有重要变更都会记录在此文件中，格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.4.0] - 2026-09-13
+
+本次更新围绕「Web 化 + 可运维」补齐配置、进度、安全、结果展示四大块能力，新增 pytest 覆盖至 52 个。
+
+### 新增 — 配置页（`web_index.html`）
+
+- **配置预设（F1）**：顶部下拉保存多套配置（如"全盘快速扫"、"单盘精细扫"、"电影专用"），一键切换，存于 `localStorage`
+- **卡片级重置（F2）**：每张卡片右上角 `↺` 按钮，单独恢复该卡片默认值
+- **实时校验（F3）**：路径格式、端口/数值范围等边填边提示，无需等点"开始扫描"才报错
+- **主题切换（F4）**：右上角三态 toggle（跟随系统 🖥️ / 亮色 ☀️ / 暗色 🌙），`localStorage` 持久化
+- **中英双语（F5）**：纯前端 i18n 字典（`I18N.zh` / `I18N.en`），页面文字即时切换
+- **快捷键（F6）**：`Ctrl+Enter` 直接启动扫描，`Esc` 从进度页退回配置页
+- **一键生成 `web.bat`（Q1）**：`GET /web.bat` 下载启动脚本，双击即开浏览器 + 启服务
+- **移动端适配（Q3）**：配置页在窄屏下重排布局
+
+### 新增 — 进度与状态（P1–P6）
+
+- **ETA 预计剩余时间（P1）**：基于当前速率推算，环形图旁显示"预计 12 分钟"
+- **实时速率（P2）**：`1,234 文件/秒`，EMA 平滑，动态刷新
+- **四段进度条（P3）**：`enumerate → parse → grouping → saving` 各自独立进度与状态
+- **当前盘符/文件（P4）**：parse 阶段显示"正在解析 G:\Videos 第 12345/50000 个：xxx.mkv"
+- **暂停 / 继续 / 取消（P5）**：`POST /api/pause|resume|cancel`，通过 `ScanControl` 优雅停线程；取消后仍展示已解析的部分结果
+- **任务历史列表（P6）**：侧边栏列出历史扫描任务（含状态 badge），点击重新打开旧结果；`GET /api/history`、`DELETE /api/history/<id>`
+
+### 新增 — 后端与算法
+
+- **`--no-strong` / `--no-mid` / `--no-weak`（B2）**：只跑指定档候选，大文件扫描时可跳过弱候选加速
+- **分组前采样预览（B3）**：`preview_scan()` + `POST /api/preview`，先返回候选量/预计耗时，用户确认后再解析
+- **扩展名白/黑名单（B4）**：`--ext mp4,mkv` 只扫指定后缀，`--exclude-ext ts` 跳过指定后缀
+- **元数据缓存 / 增量扫描（B5）**：按 `path + size + mtime` 命中缓存跳过解析，`--cache-file` / `--no-cache` 控制
+- **HTTP 基础认证（B6）**：`python web.py --auth user:pass` 保护全部接口
+- **扫描后自动跳结果页（B1）**：后端完成后前端自动 redirect，无需手动刷新
+
+### 新增 — 结果展示（`index.html`）
+
+- **批量"除保留外全选"（R1）**：工具栏一键对所有组执行，除建议保留外全部标记删除
+- **预览缩略图（R2）**：后端 `GET /api/thumb` 用 FFmpeg 抽帧（`-ss 5 -frames:v 1 -vf scale=320:-1`），按 `md5(path+size+mtime)` 缓存到 `_thumbs/`；前端懒加载，未装 FFmpeg 时优雅降级为占位图
+- **打开文件 / 定位文件夹（R3）**：每行 `📂 打开` 按钮，`POST /api/open` 在资源管理器中定位文件（Windows `explorer /select,` / macOS `open -R` / Linux `xdg-open`）
+- **三种排序（R4）**：顶部排序切换 —— 按浪费空间 / 组数 / 平均浪费
+- **导出 Dry-run 预览（R5）**：导出删除脚本前先弹确认列表（前 500 条），确认后再下载
+- **跨扫描对比（R6）**：两次 JSON 结果 diff，显示"本次新增重复组 N 组 / 新增可释放 X"
+- **结果页书签（Q2）**：结果页"存为书签"，下次直接从下拉打开对应 JSON
+
+### 新增 — 安全与稳定
+
+- **路径白名单（S1）**：`--allow-root D:\` 限制只扫指定盘，防止误扫系统盘（`filter_allowed_roots`）
+- **单实例文件锁（S2）**：`.web.lock` 记录 PID，配合存活检测防止多开 Flask；`--no-lock` 可关闭
+- **日志落盘（S3）**：扫描进度与异常写入 `scan_YYYYMMDD.log`
+- **扫描时阻止休眠（Q4）**：Windows 用 `SetThreadExecutionState`，Linux 用 `systemd-inhibit`
+
+### 测试
+
+- 新增 6 个测试类共 22 个用例：`TestNormalizeExtSet` / `TestFilterAllowedRoots` / `TestScanControl` / `TestMetaCache` / `TestEnumerateExtFilter` / `TestPreviewScan`
+- 测试总数 30 → **52**，`python -m pytest test_mediadupfinder.py -q` 全绿
+
 ## [0.3.4] - 2026-09-13
 
 ### 变更

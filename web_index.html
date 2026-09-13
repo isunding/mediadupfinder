@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>媒体查重 · 扫描配置</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0f1420;--card:#1a2133;--card2:#232b42;--border:#2d3650;
+  --text:#e4e7ef;--muted:#8b93a7;--accent:#6366f1;--accent2:#818cf8;
+  --green:#22c55e;--red:#ef4444;--yellow:#eab308;--orange:#f97316;
+}
+[data-theme="light"]{
+  --bg:#f5f6fa;--card:#ffffff;--card2:#f0f1f6;--border:#e2e4ec;
+  --text:#1d2230;--muted:#6b7280;--accent:#4f46e5;--accent2:#6366f1;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);min-height:100vh;transition:background .2s,color .2s}
+.header{background:linear-gradient(135deg,var(--card),var(--bg));border-bottom:1px solid var(--border);padding:18px 32px;position:sticky;top:0;z-index:100;backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:space-between;gap:12px}
+.header h1{font-size:19px;font-weight:600;letter-spacing:.5px;display:flex;align-items:center;gap:10px}
+.header .subtitle{color:var(--muted);font-size:13px;margin-top:3px}
+.header-tools{display:flex;gap:8px;align-items:center}
+.tool-btn{
+  background:var(--card2);border:1px solid var(--border);border-radius:20px;
+  padding:5px 11px;cursor:pointer;font-size:13px;line-height:1.2;
+  color:var(--muted);display:flex;gap:6px;align-items:center;transition:all .15s
+}
+.tool-btn:hover{color:var(--text);border-color:var(--accent)}
+.tool-btn .dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:18px;max-width:1240px;margin:0 auto;padding:28px 22px;align-items:start}
+.container{min-width:0}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:22px;margin-bottom:18px}
+.card h2{font-size:15px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:8px;color:var(--text);position:relative}
+.card h2 .icon{font-size:18px}
+.card h2 .reset-btn{
+  position:absolute;right:-4px;top:50%;transform:translateY(-50%);
+  background:none;border:1px solid var(--border);border-radius:6px;
+  color:var(--muted);font-size:12px;padding:2px 8px;cursor:pointer;
+  opacity:0;transition:all .15s
+}
+.card:hover h2 .reset-btn{opacity:1}
+.card h2 .reset-btn:hover{color:var(--text);border-color:var(--accent)}
+
+input.invalid, select.invalid{border-color:#ef4444 !important;background:rgba(239,68,68,.06)}
+.err-tip{color:#ef4444;font-size:11px;margin-top:2px;width:100%;display:none}
+
+.row{display:flex;gap:16px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.row:last-child{margin-bottom:0}
+.row label{min-width:140px;color:var(--muted);font-size:13px}
+.row input[type=text],.row input[type=number],.row select{
+  flex:1;min-width:180px;background:var(--card2);border:1px solid var(--border);
+  border-radius:8px;padding:9px 14px;color:var(--text);font-size:14px;outline:none;font-family:inherit
+}
+.row input:focus,.row select:focus{border-color:var(--accent)}
+.row input[disabled],.row select[disabled]{opacity:.5;cursor:not-allowed}
+.row .hint{color:var(--muted);font-size:12px;margin-left:10px}
+.row .unit{color:var(--muted);font-size:12px;margin-left:8px}
+
+.radio-group{display:flex;gap:10px;flex-wrap:wrap}
+.radio-group label{
+  display:flex;align-items:center;gap:6px;padding:8px 14px;
+  background:var(--card2);border:1px solid var(--border);border-radius:8px;
+  cursor:pointer;font-size:13px;min-width:auto;transition:all .15s
+}
+.radio-group label:hover{border-color:var(--accent)}
+.radio-group input[type=radio]{accent-color:var(--accent)}
+.radio-group label.active{border-color:var(--accent);background:rgba(99,102,241,.1)}
+
+.checkbox-row{display:flex;gap:10px;flex-wrap:wrap}
+.checkbox-row label{
+  display:flex;align-items:center;gap:8px;padding:9px 14px;
+  background:var(--card2);border:1px solid var(--border);border-radius:8px;
+  cursor:pointer;font-size:13px;min-width:auto;transition:all .15s;color:var(--text)
+}
+.checkbox-row label:hover{border-color:var(--accent)}
+.checkbox-row input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px;cursor:pointer}
+.checkbox-row label.on{border-color:var(--accent);background:rgba(99,102,241,.1)}
+
+.divider{height:1px;background:var(--border);margin:16px 0}
+.small-note{font-size:11px;color:var(--muted);margin-top:4px}
+.warn-row{background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.25);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--yellow);display:flex;align-items:center;gap:8px}
+
+.btn{padding:10px 22px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:var(--text);cursor:pointer;font-size:14px;font-weight:500;transition:all .15s;display:inline-flex;align-items:center;gap:8px;text-decoration:none}
+.btn:hover{border-color:var(--accent);background:var(--card)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent2);border-color:var(--accent2)}
+.btn-danger{background:rgba(239,68,68,.15);border-color:rgba(239,68,68,.4);color:var(--red)}
+.btn-danger:hover{background:rgba(239,68,68,.25)}
+.btn-sm{padding:6px 12px;font-size:12px;border-radius:8px}
+
+.actions{display:flex;justify-content:center;gap:14px;margin-top:8px;flex-wrap:wrap}
+
+.progress-page{display:none}
+.progress-page.show{display:block}
+.config-page.hide{display:none}
+
+.progress-card{text-align:center;padding:34px 30px}
+.progress-ring{position:relative;width:200px;height:200px;margin:0 auto 18px}
+.progress-ring svg{transform:rotate(-90deg)}
+.progress-ring .bg{stroke:var(--border)}
+.progress-ring .fg{stroke:var(--accent);stroke-linecap:round;transition:stroke-dashoffset .3s}
+.progress-ring-text{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.progress-ring-text .pct{font-size:44px;font-weight:700;color:var(--accent2)}
+.progress-ring-text .label{font-size:12px;color:var(--muted);margin-top:4px}
+
+.progress-status{font-size:16px;margin-bottom:6px}
+.progress-sub{color:var(--muted);font-size:13px;margin-bottom:8px;min-height:20px;word-break:break-all}
+.metrics{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:10px 0 16px}
+.metric{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:8px 14px;font-size:13px}
+.metric .k{color:var(--muted);font-size:11px;display:block}
+.metric .v{color:var(--accent2);font-weight:600;font-size:15px}
+.metric .v.green{color:var(--green)}
+.metric .v.yellow{color:var(--yellow)}
+
+.stages{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0 18px}
+.stage{text-align:left}
+.stage .stage-name{font-size:11px;color:var(--muted);margin-bottom:5px;display:flex;justify-content:space-between;gap:6px}
+.stage .stage-bar{height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+.stage .stage-bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+.stage.done .stage-bar i{background:var(--green)}
+.stage.active .stage-name{color:var(--accent2);font-weight:600}
+.stage.active .stage-bar i{background:linear-gradient(90deg,var(--accent),var(--accent2))}
+
+.ctrl-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:16px}
+
+.stats-row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:18px}
+.stat-chip{background:var(--card2);border:1px solid var(--border);border-radius:20px;padding:8px 16px;font-size:13px}
+.stat-chip b{color:var(--accent2)}
+
+.log-window{
+  background:#0a0f1a;border:1px solid var(--border);border-radius:10px;
+  padding:14px;text-align:left;height:170px;overflow-y:auto;font-family:Consolas,monospace;font-size:12px;line-height:1.8
+}
+[data-theme="light"] .log-window{background:#0f172a}
+.log-window .log-line{color:#94a3b8}
+.log-window .log-line.phase{color:var(--accent2);font-weight:600}
+.log-window .log-line.done{color:var(--green)}
+.log-window .log-line.error{color:var(--red)}
+
+.done-card{text-align:center;padding:36px 30px}
+.done-card .success-icon{font-size:64px;margin-bottom:12px}
+.done-card h2{color:var(--green);font-size:22px;margin-bottom:8px}
+.done-card .summary{color:var(--muted);margin-bottom:24px;font-size:14px;line-height:1.8}
+
+.profile-bar{display:flex;gap:10px;align-items:center;margin-bottom:18px;flex-wrap:wrap}
+.profile-bar label{color:var(--muted);font-size:12px;margin-right:4px}
+.profile-bar select{min-width:170px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;outline:none}
+.profile-bar .spacer{flex:1}
+
+.quick-links{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:16px}
+
+.preview-card{display:none}
+.preview-card.show{display:block}
+.preview-info{font-size:13px;line-height:1.9}
+.preview-info .big{font-size:22px;font-weight:700;color:var(--accent2)}
+.preview-roots{color:var(--muted);font-size:12px;margin-top:6px;word-break:break-all}
+.preview-actions{display:flex;gap:10px;justify-content:center;margin-top:16px;flex-wrap:wrap}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.sidebar{position:sticky;top:88px}
+.sidebar .card{padding:16px}
+.sidebar h2{font-size:14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+.history-list{display:flex;flex-direction:column;gap:8px;max-height:70vh;overflow-y:auto}
+.history-item{border:1px solid var(--border);border-radius:10px;padding:10px 12px;cursor:pointer;transition:all .15s;background:var(--card2)}
+.history-item:hover{border-color:var(--accent)}
+.history-item .hi-top{display:flex;justify-content:space-between;gap:8px;font-size:12px;align-items:center}
+.history-item .hi-time{color:var(--text);font-weight:600}
+.history-item .hi-meta{color:var(--muted);font-size:11px;margin-top:5px;line-height:1.6;word-break:break-all}
+.hi-badge{font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600}
+.hi-badge.done{background:rgba(34,197,94,.15);color:var(--green)}
+.hi-badge.cancelled{background:rgba(234,179,8,.15);color:var(--yellow)}
+.hi-badge.error{background:rgba(239,68,68,.15);color:var(--red)}
+.hi-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:0 2px}
+.hi-del:hover{color:var(--red)}
+.history-empty{color:var(--muted);font-size:12px;text-align:center;padding:16px 0}
+
+.running-fab{
+  position:fixed;right:20px;bottom:20px;z-index:200;display:none;
+  padding:10px 16px;border-radius:24px;border:1px solid var(--accent);
+  background:var(--accent);color:#fff;cursor:pointer;font-size:13px;font-weight:600;
+  box-shadow:0 6px 18px rgba(99,102,241,.4)
+}
+.running-fab.show{display:block}
+
+@media(max-width:1024px){
+  .layout{grid-template-columns:1fr}
+  .sidebar{position:static}
+}
+@media(max-width:768px){
+  .header{padding:14px;flex-wrap:wrap}
+  .layout{padding:14px}
+  .row label{min-width:auto;width:100%}
+  .stages{grid-template-columns:repeat(2,1fr)}
+  .progress-ring{width:170px;height:170px}
+  .progress-ring svg{width:170px;height:170px}
+}
+</style>
+</head>
+<body>
+<script>
+(function initTheme(){
+  const saved = localStorage.getItem('mdf_theme') || 'auto';
+  const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+  const effective = saved === 'auto' ? (prefersLight ? 'light' : 'dark') : saved;
+  document.documentElement.setAttribute('data-theme', effective);
+  document.documentElement.dataset.themeMode = saved;
+})();
+</script>
+
+<div class="header">
+  <div class="header-left">
+    <h1>🗂️ <span data-i18n="header.title">媒体查重 · 扫描配置</span></h1>
+    <div class="subtitle" data-i18n="header.subtitle">选择扫描范围，配置参数，一键启动后台扫描</div>
+  </div>
+  <div class="header-tools">
+    <button class="tool-btn" id="langToggle" title="切换语言 / Switch language"><span class="dot"></span><span id="langLabel">中/EN</span></button>
+    <button class="tool-btn" id="themeToggle"><span class="dot"></span><span id="themeIcon">🖥️</span></button>
+  </div>
+</div>
+
+<div class="layout">
+  <div class="container">
+
+    <div class="profile-bar">
+      <label>📋 <span data-i18n="profile.label">配置预设</span></label>
+      <select id="profileSelect"><option value="">(未选择)</option></select>
+      <button class="btn btn-sm" onclick="saveProfile()" data-i18n="profile.save">💾 保存为新预设</button>
+      <button class="btn btn-sm" onclick="updateProfile()" data-i18n="profile.update">🔄 更新</button>
+      <button class="btn btn-sm btn-danger" onclick="deleteProfile()" data-i18n="profile.delete">🗑️ 删除</button>
+      <span class="spacer"></span>
+      <a class="btn btn-sm" href="/web.bat" data-i18n="profile.webBat" title="下载 web.bat 启动脚本">⚡ 生成 web.bat</a>
+    </div>
+
+    <!-- ============ 配置页 ============ -->
+    <div class="config-page" id="configPage">
+
+      <div class="warn-row" id="serverNotice" style="display:none"></div>
+
+      <div class="card" data-reset="scope">
+        <h2><span class="icon">📍</span><span data-i18n="card.scope">扫描范围</span><button class="reset-btn" onclick="resetCard('scope')" title="恢复默认">↺</button></h2>
+        <div class="row">
+          <label data-i18n="scope.mode">扫描方式</label>
+          <div class="radio-group" id="scopeGroup">
+            <label class="active"><input type="radio" name="scope" value="folder" checked> <span data-i18n="scope.folder">指定文件夹</span></label>
+            <label><input type="radio" name="scope" value="drives"> <span data-i18n="scope.drives">盘符范围</span></label>
+          </div>
+        </div>
+        <div class="row" id="folderRow">
+          <label data-i18n="scope.folderLabel">文件夹路径</label>
+          <input type="text" id="folderInput" data-i18n-ph="scope.folderPh" placeholder="例如: D:\Videos\Movies  或  /home/user/media">
+        </div>
+        <div class="row" id="drivesRow" style="display:none">
+          <label data-i18n="scope.drivesLabel">盘符范围</label>
+          <input type="text" id="drivesInput" placeholder="例如: G-U" value="G-U">
+          <span class="hint" data-i18n="scope.drivesHint">Windows 专用，扫描所有盘符</span>
+        </div>
+      </div>
+
+      <div class="card" data-reset="basic">
+        <h2><span class="icon">⚙️</span><span data-i18n="card.basic">扫描参数</span><button class="reset-btn" onclick="resetCard('basic')" title="恢复默认">↺</button></h2>
+        <div class="row">
+          <label data-i18n="basic.minSize">最小文件大小</label>
+          <input type="number" id="minSize" value="100" min="0" step="10">
+          <span class="unit">MB</span>
+          <span class="hint" data-i18n="basic.minSizeHint">跳过小于此值的文件</span>
+        </div>
+        <div class="row">
+          <label data-i18n="basic.exclude">排除目录关键字</label>
+          <input type="text" id="excludeDir" value="CHN" data-i18n-ph="basic.excludePh" placeholder="多个用 ; 分隔，留空则不排除">
+          <span class="hint" data-i18n="basic.excludeHint">名称包含关键字的文件夹会被跳过</span>
+        </div>
+        <div class="row">
+          <label data-i18n="basic.workers">并发线程数</label>
+          <input type="number" id="workers" value="" min="1" placeholder="默认自动">
+          <span class="hint" data-i18n="basic.workersHint">留空 = min(16, CPU×2)</span>
+        </div>
+        <div class="divider"></div>
+        <div class="row">
+          <label data-i18n="filter.include">只扫描这些后缀</label>
+          <input type="text" id="includeExts" placeholder="例如: mp4,mkv（留空 = 全部媒体类型）">
+          <span class="hint" data-i18n="filter.includeHint">白名单，逗号分隔</span>
+        </div>
+        <div class="row">
+          <label data-i18n="filter.exclude">跳过这些后缀</label>
+          <input type="text" id="excludeExts" placeholder="例如: ts,rmvb">
+          <span class="hint" data-i18n="filter.excludeHint">黑名单，逗号分隔</span>
+        </div>
+      </div>
+
+      <div class="card" data-reset="tiers">
+        <h2><span class="icon">🎚️</span><span data-i18n="card.tiers">候选分档</span><button class="reset-btn" onclick="resetCard('tiers')" title="恢复默认">↺</button></h2>
+        <div class="row">
+          <label data-i18n="tiers.label">启用候选档位</label>
+          <div class="checkbox-row">
+            <label class="on"><input type="checkbox" id="tierStrong" checked> <span data-i18n="tiers.strong">强候选</span></label>
+            <label class="on"><input type="checkbox" id="tierMid" checked> <span data-i18n="tiers.mid">中候选</span></label>
+            <label class="on"><input type="checkbox" id="tierWeak" checked> <span data-i18n="tiers.weak">弱候选</span></label>
+          </div>
+        </div>
+        <div class="small-note" data-i18n="tiers.note">大文件时可只跑强/中候选，跳过弱候选以加快速度。</div>
+      </div>
+
+      <div class="card" data-reset="match">
+        <h2><span class="icon">🎯</span><span data-i18n="card.match">匹配阈值（高级）</span><button class="reset-btn" onclick="resetCard('match')" title="恢复默认">↺</button></h2>
+        <div class="row">
+          <label data-i18n="match.durTol">强候选时长容差</label>
+          <input type="number" id="durationTol" value="1.0" min="0" step="0.1">
+          <span class="unit" data-i18n="unit.seconds">秒</span>
+          <span class="hint" data-i18n="match.durTolHint">大小相同 + 时长差 ≤ 此值 → 强候选</span>
+        </div>
+        <div class="row">
+          <label data-i18n="match.weakTol">弱候选时长容差</label>
+          <input type="number" id="weakDurationTol" value="2.0" min="0" step="0.1">
+          <span class="unit" data-i18n="unit.seconds">秒</span>
+          <span class="hint" data-i18n="match.weakTolHint">时长接近 + 分辨率相同 → 弱候选</span>
+        </div>
+        <div class="row">
+          <label data-i18n="match.nameSim">文件名相似度</label>
+          <input type="number" id="nameSim" value="0.8" min="0" max="1" step="0.05">
+          <span class="hint" data-i18n="match.nameSimHint">0~1，越高越严格</span>
+        </div>
+      </div>
+
+      <div class="card" data-reset="output">
+        <h2><span class="icon">💾</span><span data-i18n="card.output">输出选项</span><button class="reset-btn" onclick="resetCard('output')" title="恢复默认">↺</button></h2>
+        <div class="row">
+          <label data-i18n="output.path">自定义输出路径</label>
+          <input type="text" id="outputPath" data-i18n-ph="output.pathPh" placeholder="留空自动写入 dup_result_<任务ID>.json">
+          <span class="hint" data-i18n="output.pathHint">只填 JSON 路径即可，CSV/HTML 自动同名</span>
+        </div>
+        <div class="divider"></div>
+        <div class="row">
+          <label data-i18n="output.format">输出格式</label>
+          <div class="checkbox-row">
+            <label class="on"><input type="checkbox" id="outJson" checked disabled> JSON</label>
+            <label class="on"><input type="checkbox" id="outCsv" checked> CSV</label>
+            <label class="on"><input type="checkbox" id="outHtml" checked> HTML</label>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="row">
+          <label data-i18n="output.extra">运行选项</label>
+          <div class="checkbox-row">
+            <label><input type="checkbox" id="dryRun"> <span data-i18n="output.dryRun">🧪 Dry-run（不写结果文件）</span></label>
+            <label class="on"><input type="checkbox" id="useCache" checked> <span data-i18n="output.cache">⚡ 增量缓存</span></label>
+            <label class="on"><input type="checkbox" id="preventSleep" checked> <span data-i18n="output.sleep">🌙 阻止休眠</span></label>
+          </div>
+        </div>
+        <div class="small-note" data-i18n="output.note">Dry-run 会忽略 CSV/HTML；增量缓存按 路径+大小+修改时间 跳过未变化文件。</div>
+      </div>
+
+      <div class="card preview-card" id="previewCard">
+        <h2><span class="icon">🔎</span><span data-i18n="preview.title">采样预览</span></h2>
+        <div class="preview-info" id="previewInfo"></div>
+        <div class="preview-actions" id="previewActions"></div>
+      </div>
+
+      <div class="actions">
+        <button class="btn" id="previewBtn" onclick="startPreview()" data-i18n="actions.preview">🔎 采样预览</button>
+        <button class="btn btn-primary" id="startBtn" onclick="startScan()" data-i18n="actions.start">🚀 开始扫描</button>
+      </div>
+      <div class="small-note" style="text-align:center;margin-top:8px" data-i18n="actions.shortcut">快捷键：Ctrl+Enter 开始扫描 · Esc 返回配置页</div>
+
+    </div>
+
+    <!-- ============ 进度页 ============ -->
+    <div class="progress-page" id="progressPage">
+
+      <div class="card progress-card" id="progressCard">
+        <div class="progress-ring">
+          <svg width="200" height="200" viewBox="0 0 220 220">
+            <circle class="bg" cx="110" cy="110" r="95" stroke-width="12" fill="none"/>
+            <circle class="fg" cx="110" cy="110" r="95" stroke-width="12" fill="none"
+                    stroke-dasharray="597" stroke-dashoffset="597" id="ringFg"/>
+          </svg>
+          <div class="progress-ring-text">
+            <div class="pct" id="pctText">0%</div>
+            <div class="label" id="phaseLabel">准备中</div>
+          </div>
+        </div>
+
+        <div class="progress-status" id="statusMsg">正在初始化...</div>
+        <div class="progress-sub" id="subMsg"></div>
+
+        <div class="stages" id="stages"></div>
+
+        <div class="metrics" id="metrics">
+          <div class="metric"><span class="k" data-i18n="progress.metric.progress">进度</span><span class="v" id="mProgress">0 / 0</span></div>
+          <div class="metric"><span class="k" data-i18n="progress.metric.rate">实时速率</span><span class="v" id="mRate">-</span></div>
+          <div class="metric"><span class="k" data-i18n="progress.metric.eta">预计剩余</span><span class="v yellow" id="mEta">-</span></div>
+          <div class="metric"><span class="k" data-i18n="progress.metric.elapsed">已用时</span><span class="v" id="mElapsed">0s</span></div>
+        </div>
+
+        <div class="ctrl-row">
+          <button class="btn btn-sm" id="pauseBtn" onclick="pauseScan()" data-i18n="progress.pause">⏸ 暂停</button>
+          <button class="btn btn-sm" id="resumeBtn" onclick="resumeScan()" style="display:none" data-i18n="progress.resume">▶ 继续</button>
+          <button class="btn btn-sm btn-danger" id="cancelBtn" onclick="cancelScan()" data-i18n="progress.cancel">⛔ 取消</button>
+        </div>
+
+        <div class="log-window" id="logWindow"></div>
+      </div>
+
+      <div class="card done-card" id="doneCard" style="display:none">
+        <div class="success-icon">🎉</div>
+        <h2 id="doneTitle" data-i18n="done.title">扫描完成!</h2>
+        <div class="summary" id="doneSummary"></div>
+        <div class="quick-links">
+          <a class="btn btn-primary" id="viewResultBtn" href="/result" data-i18n="done.viewResult">📊 查看详细结果</a>
+          <a class="btn" href="/api/download_latest/json" data-i18n="done.json">💾 下载 JSON</a>
+          <a class="btn" href="/api/download_latest/csv" data-i18n="done.csv">📄 下载 CSV</a>
+          <a class="btn" href="/api/download_latest/html" data-i18n="done.html">🌐 下载 HTML</a>
+          <button class="btn" onclick="resetToConfig()" data-i18n="done.again">🔄 再次扫描</button>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- ============ 历史侧边栏（P6） ============ -->
+  <div class="sidebar">
+    <div class="card">
+      <h2><span>🕘 <span data-i18n="history.title">任务历史</span></span>
+        <button class="btn btn-sm" onclick="loadHistory()" title="刷新">↻</button>
+      </h2>
+      <div class="history-list" id="historyList">
+        <div class="history-empty" data-i18n="history.empty">暂无历史记录</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<button class="running-fab" id="runningFab" onclick="showProgressPage()" data-i18n="progress.viewProgress">📡 查看扫描进度</button>
+
+<script>
+const CIRC = 2 * Math.PI * 95;
+let evtSource = null;
+let currentTaskId = null;
+
+/* ================= i18n (F5) ================= */
+const I18N = {
+  zh: {
+    "header.title":"媒体查重 · 扫描配置","header.subtitle":"选择扫描范围，配置参数，一键启动后台扫描",
+    "profile.label":"配置预设","profile.none":"(未选择)","profile.save":"💾 保存为新预设","profile.update":"🔄 更新","profile.delete":"🗑️ 删除","profile.webBat":"⚡ 生成 web.bat",
+    "card.scope":"扫描范围","scope.mode":"扫描方式","scope.folder":"指定文件夹","scope.drives":"盘符范围",
+    "scope.folderLabel":"文件夹路径","scope.drivesLabel":"盘符范围","scope.drivesHint":"Windows 专用，扫描所有盘符",
+    "scope.folderPh":"例如: D:\\Videos\\Movies  或  /home/user/media",
+    "card.basic":"扫描参数","basic.minSize":"最小文件大小","basic.minSizeHint":"跳过小于此值的文件",
+    "basic.exclude":"排除目录关键字","basic.excludePh":"多个用 ; 分隔，留空则不排除","basic.excludeHint":"名称包含关键字的文件夹会被跳过",
+    "basic.workers":"并发线程数","basic.workersHint":"留空 = min(16, CPU×2)",
+    "filter.include":"只扫描这些后缀","filter.includeHint":"白名单，逗号分隔",
+    "filter.exclude":"跳过这些后缀","filter.excludeHint":"黑名单，逗号分隔",
+    "card.tiers":"候选分档","tiers.label":"启用候选档位","tiers.strong":"强候选","tiers.mid":"中候选","tiers.weak":"弱候选",
+    "tiers.note":"大文件时可只跑强/中候选，跳过弱候选以加快速度。",
+    "card.match":"匹配阈值（高级）","match.durTol":"强候选时长容差","match.durTolHint":"大小相同 + 时长差 ≤ 此值 → 强候选",
+    "match.weakTol":"弱候选时长容差","match.weakTolHint":"时长接近 + 分辨率相同 → 弱候选",
+    "match.nameSim":"文件名相似度","match.nameSimHint":"0~1，越高越严格","unit.seconds":"秒",
+    "card.output":"输出选项","output.path":"自定义输出路径","output.pathPh":"留空自动写入 dup_result_<任务ID>.json",
+    "output.pathHint":"只填 JSON 路径即可，CSV/HTML 自动同名","output.format":"输出格式",
+    "output.extra":"运行选项","output.dryRun":"🧪 Dry-run（不写结果文件）","output.cache":"⚡ 增量缓存","output.sleep":"🌙 阻止休眠",
+    "output.note":"Dry-run 会忽略 CSV/HTML；增量缓存按 路径+大小+修改时间 跳过未变化文件。",
+    "preview.title":"采样预览","preview.running":"预览中","preview.found":"发现候选文件","preview.est":"预计解析耗时","preview.perRoot":"各盘符分布",
+    "preview.confirm":"✅ 确认开始扫描","preview.cancel":"取消预览","preview.failed":"预览失败","preview.noFiles":"没有找到候选文件",
+    "actions.preview":"🔎 采样预览","actions.start":"🚀 开始扫描","actions.shortcut":"快捷键：Ctrl+Enter 开始扫描 · Esc 返回配置页",
+    "progress.init":"正在初始化...","progress.viewProgress":"📡 查看扫描进度",
+    "progress.metric.progress":"进度","progress.metric.rate":"实时速率","progress.metric.eta":"预计剩余","progress.metric.elapsed":"已用时",
+    "progress.pause":"⏸ 暂停","progress.resume":"▶ 继续","progress.cancel":"⛔ 取消",
+    "stage.enumerate":"扫描文件系统","stage.parse":"解析元数据","stage.grouping":"分组去重","stage.saving":"保存结果",
+    "done.title":"扫描完成!","done.cancelled":"扫描已取消","done.viewResult":"📊 查看详细结果","done.json":"💾 下载 JSON","done.csv":"📄 下载 CSV","done.html":"🌐 下载 HTML","done.again":"🔄 再次扫描",
+    "done.summary":"扫描了 <b>{files}</b> 个文件<br>识别出 <b>{strong}</b> 强 / <b>{mid}</b> 中 / <b>{weak}</b> 弱候选组<br>预计可释放 <b style=\"color:var(--green)\">{wasted} GB</b> 空间",
+    "done.autoJump":"，3 秒后自动打开结果页",
+    "history.title":"任务历史","history.empty":"暂无历史记录","history.confirmDelete":"删除该历史记录？",
+    "history.groups":"{n} 组","history.wasted":"{gb} GB","history.delete":"删除记录",
+    "history.status.done":"完成","history.status.cancelled":"已取消","history.status.error":"失败",
+    "theme.auto":"跟随系统","theme.light":"亮色","theme.dark":"暗色",
+    "valid.minSize":"必须 ≥ 0","valid.workers":"必须 ≥ 1","valid.tol":"必须 ≥ 0","valid.nameSim":"必须在 0~1 之间",
+    "valid.drives":"格式应为 G 或 G-U","valid.pathChars":"路径不能含 < > | ? \" *","valid.pathChars2":"路径不能含 < > | ? \"",
+    "valid.folderRequired":"请输入文件夹路径","valid.drivesRequired":"请输入盘符范围","valid.tierRequired":"请至少启用一个候选档位",
+    "notice.allowRoots":"🔒 服务端已限制可扫描路径：{roots}",
+    "msg.startFail":"启动失败","msg.reqFail":"请求失败","msg.disconnected":"连接断开，5秒后重试...",
+    "msg.confirmCancel":"确定取消当前扫描？已解析的部分结果会保留。","msg.partial":"部分结果","msg.profileName":"输入预设名称：","msg.newProfile":"新预设",
+    "msg.selectProfile":"请先选择一个预设","msg.deleteProfile":"删除预设 \"{name}\"？"
+  },
+  en: {
+    "header.title":"Media Dedup · Scan Config","header.subtitle":"Pick a scope, tune parameters, start a background scan",
+    "profile.label":"Profile","profile.none":"(none)","profile.save":"💾 Save as profile","profile.update":"🔄 Update","profile.delete":"🗑️ Delete","profile.webBat":"⚡ web.bat",
+    "card.scope":"Scan Scope","scope.mode":"Mode","scope.folder":"Folder","scope.drives":"Drive range",
+    "scope.folderLabel":"Folder path","scope.drivesLabel":"Drive range","scope.drivesHint":"Windows only, scans all drives in range",
+    "scope.folderPh":"e.g. D:\\Videos\\Movies  or  /home/user/media",
+    "card.basic":"Scan Parameters","basic.minSize":"Min file size","basic.minSizeHint":"Skip files smaller than this",
+    "basic.exclude":"Exclude dir keywords","basic.excludePh":"Comma/; separated, empty = no exclusion","basic.excludeHint":"Folders containing keywords are skipped",
+    "basic.workers":"Worker threads","basic.workersHint":"Empty = min(16, CPU×2)",
+    "filter.include":"Include extensions","filter.includeHint":"Whitelist, comma separated",
+    "filter.exclude":"Exclude extensions","filter.excludeHint":"Blacklist, comma separated",
+    "card.tiers":"Candidate Tiers","tiers.label":"Enabled tiers","tiers.strong":"Strong","tiers.mid":"Mid","tiers.weak":"Weak",
+    "tiers.note":"For large scans you can skip the weak tier to speed things up.",
+    "card.match":"Match Thresholds (Advanced)","match.durTol":"Strong duration tolerance","match.durTolHint":"Same size + duration diff ≤ value → strong",
+    "match.weakTol":"Weak duration tolerance","match.weakTolHint":"Similar duration + same resolution → weak",
+    "match.nameSim":"Name similarity","match.nameSimHint":"0~1, higher = stricter","unit.seconds":"s",
+    "card.output":"Output","output.path":"Custom output path","output.pathPh":"Empty = dup_result_<taskId>.json",
+    "output.pathHint":"JSON path only; CSV/HTML use the same name","output.format":"Formats",
+    "output.extra":"Options","output.dryRun":"🧪 Dry-run (no files written)","output.cache":"⚡ Incremental cache","output.sleep":"🌙 Prevent sleep",
+    "output.note":"Dry-run ignores CSV/HTML; cache skips unchanged files by path+size+mtime.",
+    "preview.title":"Sampling Preview","preview.running":"Previewing","preview.found":"Candidate files","preview.est":"Estimated parse time","preview.perRoot":"Per root",
+    "preview.confirm":"✅ Confirm & start","preview.cancel":"Cancel preview","preview.failed":"Preview failed","preview.noFiles":"No candidate files found",
+    "actions.preview":"🔎 Preview","actions.start":"🚀 Start scan","actions.shortcut":"Shortcuts: Ctrl+Enter start · Esc back to config",
+    "progress.init":"Initializing...","progress.viewProgress":"📡 View progress",
+    "progress.metric.progress":"Progress","progress.metric.rate":"Rate","progress.metric.eta":"ETA","progress.metric.elapsed":"Elapsed",
+    "progress.pause":"⏸ Pause","progress.resume":"▶ Resume","progress.cancel":"⛔ Cancel",
+    "stage.enumerate":"Enumerate","stage.parse":"Parse","stage.grouping":"Grouping","stage.saving":"Saving",
+    "done.title":"Scan complete!","done.cancelled":"Scan cancelled","done.viewResult":"📊 View results","done.json":"💾 JSON","done.csv":"📄 CSV","done.html":"🌐 HTML","done.again":"🔄 Scan again",
+    "done.summary":"Scanned <b>{files}</b> files<br>Found <b>{strong}</b> strong / <b>{mid}</b> mid / <b>{weak}</b> weak groups<br>About <b style=\"color:var(--green)\">{wasted} GB</b> reclaimable",
+    "done.autoJump":", opening results in 3s",
+    "history.title":"Task History","history.empty":"No history yet","history.confirmDelete":"Delete this history record?",
+    "history.groups":"{n} groups","history.wasted":"{gb} GB","history.delete":"Delete record",
+    "history.status.done":"done","history.status.cancelled":"cancelled","history.status.error":"failed",
+    "theme.auto":"System","theme.light":"Light","theme.dark":"Dark",
+    "valid.minSize":"Must be ≥ 0","valid.workers":"Must be ≥ 1","valid.tol":"Must be ≥ 0","valid.nameSim":"Must be between 0~1",
+    "valid.drives":"Format should be G or G-U","valid.pathChars":"Path cannot contain < > | ? \" *","valid.pathChars2":"Path cannot contain < > | ? \"",
+    "valid.folderRequired":"Please enter a folder path","valid.drivesRequired":"Please enter a drive range","valid.tierRequired":"Enable at least one candidate tier",
+    "notice.allowRoots":"🔒 Server restricts scan paths to: {roots}",
+    "msg.startFail":"Start failed","msg.reqFail":"Request failed","msg.disconnected":"Connection lost, retrying in 5s...",
+    "msg.confirmCancel":"Cancel the current scan? Partial results are kept.","msg.partial":"partial","msg.profileName":"Profile name:","msg.newProfile":"New profile",
+    "msg.selectProfile":"Select a profile first","msg.deleteProfile":"Delete profile \"{name}\"?"
+  }
+};
+let LANG = localStorage.getItem('mdf_lang') || 'zh';
+function t(key){ return (I18N[LANG] && I18N[LANG][key]) || I18N.zh[key] || key; }
+function tf(key, vars){
+  let s = t(key);
+  Object.keys(vars || {}).forEach(k => { s = s.split('{'+k+'}').join(vars[k]); });
+  return s;
+}
+function applyI18n(){
+  document.querySelectorAll('[data-i18n]').forEach(el=>{ el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el=>{ el.placeholder = t(el.dataset.i18nPh); });
+  document.documentElement.lang = LANG === 'en' ? 'en' : 'zh-CN';
+  document.getElementById('langLabel').textContent = LANG === 'zh' ? '中/EN' : 'EN/中';
+  applyTheme(document.documentElement.dataset.themeMode || 'auto');
+  refreshProfileSelect();
+  loadHistory();
+  inlineChecks.forEach(fn=>fn());
+}
+
+/* ================= 主题三态 (F4) ================= */
+const THEME_SEQ = ['auto','light','dark'];
+const THEME_ICON = {auto:'🖥️', light:'☀️', dark:'🌙'};
+const mediaQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: light)') : null;
+
+function applyTheme(mode){
+  const prefersLight = mediaQuery && mediaQuery.matches;
+  const effective = mode === 'auto' ? (prefersLight ? 'light' : 'dark') : mode;
+  document.documentElement.setAttribute('data-theme', effective);
+  document.documentElement.dataset.themeMode = mode;
+  const icon = document.getElementById('themeIcon');
+  if(icon) icon.textContent = THEME_ICON[mode] || '🌙';
+  const btn = document.getElementById('themeToggle');
+  if(btn) btn.title = t('theme.'+mode);
+}
+if(mediaQuery && mediaQuery.addEventListener){
+  mediaQuery.addEventListener('change', ()=>{
+    if((document.documentElement.dataset.themeMode||'auto') === 'auto') applyTheme('auto');
+  });
+}
+document.getElementById('themeToggle').addEventListener('click', ()=>{
+  const cur = document.documentElement.dataset.themeMode || 'auto';
+  const next = THEME_SEQ[(THEME_SEQ.indexOf(cur)+1) % THEME_SEQ.length];
+  localStorage.setItem('mdf_theme', next);
+  applyTheme(next);
+});
+document.getElementById('langToggle').addEventListener('click', ()=>{
+  LANG = LANG === 'zh' ? 'en' : 'zh';
+  localStorage.setItem('mdf_lang', LANG);
+  applyI18n();
+});
+
+/* ================= 工具 ================= */
+function fmtSize(b){
+  if(b>=1024**3) return (b/1024**3).toFixed(2)+' GB';
+  if(b>=1024**2) return (b/1024**2).toFixed(2)+' MB';
+  if(b>=1024) return (b/1024).toFixed(2)+' KB';
+  return b+' B';
+}
+function fmtDur(sec){
+  if(sec === null || sec === undefined || isNaN(sec) || sec < 0) return '-';
+  sec = Math.round(sec);
+  const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+  if(h>0) return `${h}h ${m}m`;
+  if(m>0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* ================= 通用交互 ================= */
+document.querySelectorAll('.checkbox-row input[type=checkbox]').forEach(cb=>{
+  cb.addEventListener('change', ()=>{
+    const lbl = cb.closest('label');
+    if(lbl) lbl.classList.toggle('on', cb.checked);
+  });
+});
+document.querySelectorAll('input[name=scope]').forEach(r=>{
+  r.addEventListener('change', ()=>{ updateScopeUI(); });
+});
+function updateScopeUI(){
+  const r = document.querySelector('input[name=scope]:checked');
+  if(!r) return;
+  document.querySelectorAll('#scopeGroup label').forEach(l=>l.classList.remove('active'));
+  r.closest('label').classList.add('active');
+  document.getElementById('folderRow').style.display = r.value==='folder' ? 'flex' : 'none';
+  document.getElementById('drivesRow').style.display = r.value==='drives' ? 'flex' : 'none';
+}
+
+const DEFAULTS = {
+  scope: ()=>{ document.querySelector('input[name=scope][value=folder]').checked=true; document.getElementById('folderInput').value=''; document.getElementById('drivesInput').value='G-U'; updateScopeUI(); },
+  basic: ()=>{ document.getElementById('minSize').value=100; document.getElementById('excludeDir').value='CHN'; document.getElementById('workers').value=''; document.getElementById('includeExts').value=''; document.getElementById('excludeExts').value=''; },
+  tiers: ()=>{ document.getElementById('tierStrong').checked=true; document.getElementById('tierMid').checked=true; document.getElementById('tierWeak').checked=true; syncCheckboxStyles(); },
+  match: ()=>{ document.getElementById('durationTol').value=1.0; document.getElementById('weakDurationTol').value=2.0; document.getElementById('nameSim').value=0.8; },
+  output: ()=>{ document.getElementById('outputPath').value=''; document.getElementById('outCsv').checked=true; document.getElementById('outHtml').checked=true; document.getElementById('dryRun').checked=false; document.getElementById('useCache').checked=true; document.getElementById('preventSleep').checked=true; syncCheckboxStyles(); },
+};
+function syncCheckboxStyles(){
+  document.querySelectorAll('.checkbox-row input[type=checkbox]').forEach(cb=>{
+    const l = cb.closest('label'); if(l) l.classList.toggle('on', cb.checked);
+  });
+}
+function resetCard(key){ if(DEFAULTS[key]){ DEFAULTS[key](); inlineChecks.forEach(fn=>fn()); } }
+
+/* ================= 实时校验 (F3) ================= */
+const inlineChecks = [];
+function attachInlineError(input, validator){
+  if(!input) return null;
+  const wrap = input.closest('.row');
+  let tip = wrap.querySelector('.err-tip');
+  if(!tip){ tip = document.createElement('div'); tip.className='err-tip'; wrap.appendChild(tip); }
+  function check(){
+    const msg = validator(input.value);
+    if(msg){ input.classList.add('invalid'); tip.textContent=msg; tip.style.display='block'; }
+    else { input.classList.remove('invalid'); tip.style.display='none'; }
+  }
+  input.addEventListener('input', check);
+  input.addEventListener('blur', check);
+  inlineChecks.push(check);
+  check();
+  return check;
+}
+attachInlineError(document.getElementById('minSize'), v=>{ const n=parseFloat(v); return (isNaN(n)||n<0) ? t('valid.minSize') : ''; });
+attachInlineError(document.getElementById('workers'), v=>{ if(!v) return ''; const n=parseInt(v,10); return (isNaN(n)||n<1) ? t('valid.workers') : ''; });
+attachInlineError(document.getElementById('durationTol'), v=>{ const n=parseFloat(v); return (isNaN(n)||n<0) ? t('valid.tol') : ''; });
+attachInlineError(document.getElementById('weakDurationTol'), v=>{ const n=parseFloat(v); return (isNaN(n)||n<0) ? t('valid.tol') : ''; });
+attachInlineError(document.getElementById('nameSim'), v=>{ const n=parseFloat(v); return (isNaN(n)||n<0||n>1) ? t('valid.nameSim') : ''; });
+attachInlineError(document.getElementById('drivesInput'), v=>{
+  if(!v) return '';
+  return /^[A-Za-z](-[A-Za-z])?$/.test(v.trim()) ? '' : t('valid.drives');
+});
+attachInlineError(document.getElementById('folderInput'), v=>{
+  if(!v) return '';
+  return /[<>|?"*]/.test(v) ? t('valid.pathChars') : '';
+});
+attachInlineError(document.getElementById('outputPath'), v=>{
+  if(!v) return '';
+  return /[<>|?"]/.test(v) ? t('valid.pathChars2') : '';
+});
+
+/* ================= 表单收集 / 回填 ================= */
+function splitList(v){ return (v||'').split(/[;,，]/).map(s=>s.trim()).filter(Boolean); }
+function parseExts(v){ return (v||'').split(/[;,，\s]+/).map(s=>s.trim()).filter(Boolean); }
+
+function collectForm(){
+  const d = document;
+  return {
+    scope: d.querySelector('input[name=scope]:checked').value,
+    folderInput: d.getElementById('folderInput').value,
+    drivesInput: d.getElementById('drivesInput').value,
+    minSize: d.getElementById('minSize').value,
+    excludeDir: d.getElementById('excludeDir').value,
+    workers: d.getElementById('workers').value,
+    includeExts: d.getElementById('includeExts').value,
+    excludeExts: d.getElementById('excludeExts').value,
+    tierStrong: d.getElementById('tierStrong').checked,
+    tierMid: d.getElementById('tierMid').checked,
+    tierWeak: d.getElementById('tierWeak').checked,
+    durationTol: d.getElementById('durationTol').value,
+    weakDurationTol: d.getElementById('weakDurationTol').value,
+    nameSim: d.getElementById('nameSim').value,
+    outputPath: d.getElementById('outputPath').value,
+    outCsv: d.getElementById('outCsv').checked,
+    outHtml: d.getElementById('outHtml').checked,
+    dryRun: d.getElementById('dryRun').checked,
+    useCache: d.getElementById('useCache').checked,
+    preventSleep: d.getElementById('preventSleep').checked,
+  };
+}
+function applyForm(p){
+  const d = document;
+  if(p.scope) d.querySelector(`input[name=scope][value=${p.scope}]`).checked = true;
+  d.getElementById('folderInput').value = p.folderInput || '';
+  d.getElementById('drivesInput').value = p.drivesInput || 'G-U';
+  d.getElementById('minSize').value = p.minSize ?? 100;
+  d.getElementById('excludeDir').value = p.excludeDir ?? 'CHN';
+  d.getElementById('workers').value = p.workers ?? '';
+  d.getElementById('includeExts').value = p.includeExts ?? '';
+  d.getElementById('excludeExts').value = p.excludeExts ?? '';
+  d.getElementById('tierStrong').checked = p.tierStrong !== false;
+  d.getElementById('tierMid').checked = p.tierMid !== false;
+  d.getElementById('tierWeak').checked = p.tierWeak !== false;
+  d.getElementById('durationTol').value = p.durationTol ?? 1.0;
+  d.getElementById('weakDurationTol').value = p.weakDurationTol ?? 2.0;
+  d.getElementById('nameSim').value = p.nameSim ?? 0.8;
+  d.getElementById('outputPath').value = p.outputPath || '';
+  d.getElementById('outCsv').checked = p.outCsv !== false;
+  d.getElementById('outHtml').checked = p.outHtml !== false;
+  d.getElementById('dryRun').checked = !!p.dryRun;
+  d.getElementById('useCache').checked = p.useCache !== false;
+  d.getElementById('preventSleep').checked = p.preventSleep !== false;
+  updateScopeUI();
+  syncCheckboxStyles();
+  inlineChecks.forEach(fn=>fn());
+}
+
+function buildParams(){
+  const f = collectForm();
+  const dryRun = f.dryRun;
+  const params = {
+    scope: f.scope,
+    min_size_mb: parseFloat(f.minSize) || 100,
+    duration_tol: parseFloat(f.durationTol) || 1.0,
+    weak_duration_tol: parseFloat(f.weakDurationTol) || 2.0,
+    name_sim: parseFloat(f.nameSim) || 0.8,
+    exclude_dir: splitList(f.excludeDir),
+    include_exts: parseExts(f.includeExts),
+    exclude_exts: parseExts(f.excludeExts),
+    no_strong: !f.tierStrong,
+    no_mid: !f.tierMid,
+    no_weak: !f.tierWeak,
+    dry_run: dryRun,
+    no_csv: dryRun ? true : !f.outCsv,
+    no_html: dryRun ? true : !f.outHtml,
+    output_path: f.outputPath.trim(),
+    use_cache: f.useCache,
+    prevent_sleep: f.preventSleep,
+  };
+  const w = (f.workers||'').trim();
+  if(w) params.workers = parseInt(w);
+  if(f.scope==='folder') params.folder = f.folderInput.trim();
+  else params.drives = f.drivesInput.trim();
+  return params;
+}
+function validateParams(params){
+  if(params.scope==='folder' && !params.folder){ alert(t('valid.folderRequired')); return false; }
+  if(params.scope==='drives' && !params.drives){ alert(t('valid.drivesRequired')); return false; }
+  if(params.no_strong && params.no_mid && params.no_weak){ alert(t('valid.tierRequired')); return false; }
+  const bad = ['minSize','workers','durationTol','weakDurationTol','nameSim','drivesInput','folderInput','outputPath']
+    .map(id=>document.getElementById(id)).find(el=>el && el.classList.contains('invalid'));
+  if(bad){ bad.focus(); return false; }
+  return true;
+}
+
+/* ================= 启动扫描 ================= */
+function startScan(){
+  const params = buildParams();
+  if(!validateParams(params)) return;
+  hidePreview();
+  showProgressPage();
+  document.getElementById('progressCard').style.display='block';
+  document.getElementById('doneCard').style.display='none';
+  document.getElementById('logWindow').innerHTML = '';
+  appendLog(t('progress.init'), 'phase');
+
+  fetch('/api/start', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(params)
+  }).then(r=>r.json()).then(data=>{
+    if(!data.ok){ appendLog(t('msg.startFail')+': '+data.error, 'error'); return; }
+    currentTaskId = data.task_id;
+    connectProgress();
+  }).catch(err=>{ appendLog(t('msg.reqFail')+': '+err.message, 'error'); });
+}
+
+function connectProgress(){
+  if(evtSource) evtSource.close();
+  evtSource = new EventSource('/api/progress');
+  evtSource.onmessage = (e)=>{
+    const s = JSON.parse(e.data);
+    updateProgress(s);
+    if(s.done || s.phase==='error'){
+      evtSource.close();
+      evtSource = null;
+      if(s.done) showDone(s);
+      loadHistory();
+    }
+  };
+  evtSource.onerror = ()=>{
+    if(!evtSource) return;
+    appendLog(t('msg.disconnected'), 'error');
+    setTimeout(connectProgress, 5000);
+  };
+}
+
+const PHASE_LABEL = {
+  init:'progress.init', enumerate:'stage.enumerate', parse:'stage.parse',
+  grouping:'stage.grouping', saving:'stage.saving', done:'done.title', error:'preview.failed'
+};
+
+function renderStages(stages){
+  const el = document.getElementById('stages');
+  if(!stages) return;
+  const order = ['enumerate','parse','grouping','saving'];
+  el.innerHTML = order.map(k=>{
+    const st = stages[k] || {pct:0,status:'pending'};
+    return `<div class="stage ${st.status}">
+      <div class="stage-name"><span>${t('stage.'+k)}</span><span>${st.status==='done'?'✓':st.pct+'%'}</span></div>
+      <div class="stage-bar"><i style="width:${st.status==='done'?100:st.pct}%"></i></div>
+    </div>`;
+  }).join('');
+}
+
+function updateProgress(s){
+  const pct = Math.round(s.progress_pct || 0);
+  document.getElementById('ringFg').style.strokeDashoffset = CIRC * (1 - pct/100);
+  document.getElementById('pctText').textContent = pct + '%';
+  document.getElementById('phaseLabel').textContent = t(PHASE_LABEL[s.phase] || s.phase);
+  document.getElementById('statusMsg').textContent = s.message || '';
+  document.getElementById('subMsg').textContent = (s.current_file ? (s.current_root||'') + ' · ' + s.current_file : '');
+  document.getElementById('mProgress').textContent = (s.current||0).toLocaleString() + ' / ' + (s.total||0).toLocaleString();
+  document.getElementById('mRate').textContent = s.rate ? (Math.round(s.rate).toLocaleString() + ' /s') : '-';
+  document.getElementById('mEta').textContent = fmtDur(s.eta_seconds);
+  document.getElementById('mElapsed').textContent = fmtDur(s.elapsed);
+  renderStages(s.stages);
+
+  const paused = !!s.paused;
+  document.getElementById('pauseBtn').style.display = paused ? 'none' : 'inline-flex';
+  document.getElementById('resumeBtn').style.display = paused ? 'inline-flex' : 'none';
+
+  appendLog(s.message, s.phase==='done'?'done':s.phase==='error'?'error':'');
+}
+
+function appendLog(msg, cls){
+  if(!msg) return;
+  const w = document.getElementById('logWindow');
+  const last = w.lastElementChild;
+  if(last && last.dataset.msg === msg && last.dataset.cls === (cls||'')) return;
+  const line = document.createElement('div');
+  line.className = 'log-line ' + (cls||'');
+  line.dataset.msg = msg; line.dataset.cls = cls||'';
+  const time = new Date().toLocaleTimeString();
+  line.textContent = `[${time}] ${msg}`;
+  w.appendChild(line);
+  w.scrollTop = w.scrollHeight;
+  while(w.children.length > 300) w.removeChild(w.firstChild);
+}
+
+/* ================= 暂停 / 继续 / 取消 (P5) ================= */
+function postCtl(path){ return fetch(path, {method:'POST'}).then(r=>r.json()).catch(()=>({ok:false})); }
+function pauseScan(){ postCtl('/api/pause'); }
+function resumeScan(){ postCtl('/api/resume'); }
+function cancelScan(){ if(confirm(t('msg.confirmCancel'))) postCtl('/api/cancel'); }
+
+/* ================= 完成页 ================= */
+function showDone(s){
+  document.getElementById('progressCard').style.display='none';
+  document.getElementById('doneCard').style.display='block';
+  document.getElementById('runningFab').classList.remove('show');
+  const stats = s.stats || {};
+  let summary = '';
+  if(stats.total_scanned !== undefined){
+    summary = tf('done.summary', {
+      files: (stats.total_scanned||0).toLocaleString(),
+      strong: stats.strong_groups||0, mid: stats.mid_groups||0, weak: stats.weak_groups||0,
+      wasted: stats.total_wasted_gb||0
+    });
+    if(s.cancelled) summary += ` <span style="color:var(--yellow)">(${t('msg.partial')})</span>`;
+    if(!s.error && !s.cancelled) summary += t('done.autoJump');
+  } else if(s.error){
+    summary = `<span style="color:var(--red)">${escapeHtml(s.error)}</span>`;
+  }
+  document.getElementById('doneTitle').textContent = s.cancelled ? t('done.cancelled') : t('done.title');
+  document.getElementById('doneSummary').innerHTML = summary;
+  if(!s.error && !s.cancelled){
+    setTimeout(()=>{ window.location.href = '/result'; }, 3000);
+  }
+}
+
+/* ================= 预览 (B3) ================= */
+let previewTimer = null;
+function startPreview(){
+  const params = buildParams();
+  if(!validateParams(params)) return;
+  document.getElementById('previewCard').classList.add('show');
+  document.getElementById('previewInfo').innerHTML = `<span class="spinner"></span>${t('preview.running')}...`;
+  document.getElementById('previewActions').innerHTML = '';
+  fetch('/api/preview', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(params)})
+    .then(r=>r.json()).then(data=>{
+      if(!data.ok){ document.getElementById('previewInfo').textContent = t('preview.failed')+': '+data.error; return; }
+      pollPreview();
+    }).catch(err=>{ document.getElementById('previewInfo').textContent = t('msg.reqFail')+': '+err.message; });
+}
+function pollPreview(){
+  clearTimeout(previewTimer);
+  fetch('/api/preview_status').then(r=>r.json()).then(st=>{
+    if(st.running){
+      document.getElementById('previewInfo').innerHTML = `<span class="spinner"></span>${escapeHtml(st.message||t('preview.running'))}`;
+      previewTimer = setTimeout(pollPreview, 800);
+      return;
+    }
+    if(st.error){ document.getElementById('previewInfo').textContent = t('preview.failed')+': '+st.error; return; }
+    renderPreview(st.info);
+  }).catch(()=>{ previewTimer = setTimeout(pollPreview, 1200); });
+}
+function renderPreview(info){
+  if(!info){ document.getElementById('previewInfo').textContent = t('preview.failed'); return; }
+  const roots = Object.entries(info.per_root||{}).map(([r,c])=>`${escapeHtml(r)}: ${c}`).join(' · ');
+  const hasFiles = info.total_candidates > 0;
+  document.getElementById('previewInfo').innerHTML = hasFiles
+    ? `<div>${t('preview.found')}：<span class="big">${info.total_candidates.toLocaleString()}</span></div>
+       <div>${t('preview.est')}：<b>${fmtDur(info.est_seconds)}</b>（${info.avg_ms} ms/${LANG==='zh'?'文件':'file'}）</div>
+       <div class="preview-roots">${t('preview.perRoot')} — ${roots}</div>`
+    : `<div>${t('preview.noFiles')}</div><div class="preview-roots">${roots}</div>`;
+  document.getElementById('previewActions').innerHTML = hasFiles
+    ? `<button class="btn btn-primary" onclick="startScan()">${t('preview.confirm')}</button>
+       <button class="btn" onclick="hidePreview()">${t('preview.cancel')}</button>`
+    : `<button class="btn" onclick="hidePreview()">${t('preview.cancel')}</button>`;
+}
+function hidePreview(){
+  clearTimeout(previewTimer);
+  document.getElementById('previewCard').classList.remove('show');
+}
+
+/* ================= 配置预设 (F1) ================= */
+const PROFILES_KEY = 'mdf_profiles_v1';
+function loadProfiles(){ try { return JSON.parse(localStorage.getItem(PROFILES_KEY) || '{}'); } catch(e){ return {}; } }
+function saveProfiles(p){ localStorage.setItem(PROFILES_KEY, JSON.stringify(p)); }
+function refreshProfileSelect(){
+  const sel = document.getElementById('profileSelect');
+  if(!sel) return;
+  const cur = sel.value;
+  const profiles = loadProfiles();
+  sel.innerHTML = `<option value="">${t('profile.none')}</option>`
+    + Object.keys(profiles).map(k=>`<option value="${escapeHtml(k)}">${escapeHtml(k)}</option>`).join('');
+  sel.value = cur;
+}
+function saveProfile(){
+  const name = prompt(t('msg.profileName'), t('msg.newProfile'));
+  if(!name) return;
+  const profiles = loadProfiles();
+  profiles[name] = collectForm();
+  saveProfiles(profiles);
+  refreshProfileSelect();
+  document.getElementById('profileSelect').value = name;
+}
+function updateProfile(){
+  const sel = document.getElementById('profileSelect');
+  if(!sel.value){ alert(t('msg.selectProfile')); return; }
+  const profiles = loadProfiles();
+  profiles[sel.value] = collectForm();
+  saveProfiles(profiles);
+  refreshProfileSelect();
+  sel.value = sel.value;
+}
+function deleteProfile(){
+  const sel = document.getElementById('profileSelect');
+  if(!sel.value){ alert(t('msg.selectProfile')); return; }
+  if(!confirm(tf('msg.deleteProfile', {name: sel.value}))) return;
+  const profiles = loadProfiles();
+  delete profiles[sel.value];
+  saveProfiles(profiles);
+  refreshProfileSelect();
+}
+document.getElementById('profileSelect').addEventListener('change', (e)=>{
+  const p = loadProfiles()[e.target.value];
+  if(p) applyForm(p);
+});
+
+/* ================= 历史任务 (P6) ================= */
+function loadHistory(){
+  fetch('/api/history').then(r=>r.json()).then(d=>{
+    renderHistory(d && d.ok ? d.items : []);
+  }).catch(()=>{});
+}
+function renderHistory(items){
+  const box = document.getElementById('historyList');
+  if(!items || !items.length){ box.innerHTML = `<div class="history-empty">${t('history.empty')}</div>`; return; }
+  box.innerHTML = items.map(it=>{
+    const st = it.stats || {};
+    const groups = (st.strong_groups||0)+(st.mid_groups||0)+(st.weak_groups||0);
+    const badge = it.status==='done' ? `<span class="hi-badge done">${t('history.status.done')}</span>`
+                : it.status==='cancelled' ? `<span class="hi-badge cancelled">${t('history.status.cancelled')}</span>`
+                : `<span class="hi-badge error">${t('history.status.error')}</span>`;
+    const when = (it.start_time||'').replace('T',' ');
+    return `<div class="history-item" ${it.available?`onclick="openHistory('${it.task_id}')"`:''}>
+      <div class="hi-top"><span class="hi-time">${escapeHtml(when)}</span>${badge}
+        <button class="hi-del" onclick="event.stopPropagation();deleteHistory('${it.task_id}')" title="${t('history.delete')}">✕</button></div>
+      <div class="hi-meta">${groups?tf('history.groups',{n:groups.toLocaleString()}):''}${st.total_wasted_gb?` · ${tf('history.wasted',{gb:st.total_wasted_gb})}`:''}${it.error?` · ${escapeHtml(it.error)}`:''}</div>
+      <div class="hi-meta">${escapeHtml((it.roots||[]).join(', '))}</div>
+    </div>`;
+  }).join('');
+}
+function openHistory(id){ window.location.href = '/result?task=' + encodeURIComponent(id); }
+function deleteHistory(id){
+  if(!confirm(t('history.confirmDelete'))) return;
+  fetch('/api/history/'+id, {method:'DELETE'}).then(()=>loadHistory()).catch(()=>{});
+}
+
+/* ================= 服务端配置提示 (S1 / B6) ================= */
+function checkServerConfig(){
+  fetch('/api/config').then(r=>r.json()).then(cfg=>{
+    const el = document.getElementById('serverNotice');
+    const notes = [];
+    if(cfg.allow_roots && cfg.allow_roots.length) notes.push(tf('notice.allowRoots', {roots: cfg.allow_roots.join(', ')}));
+    if(notes.length){ el.innerHTML = notes.join('<br>'); el.style.display='flex'; }
+    else el.style.display='none';
+  }).catch(()=>{});
+}
+
+/* ================= 页面切换 / 运行状态 ================= */
+function showProgressPage(){
+  document.getElementById('configPage').classList.add('hide');
+  document.getElementById('progressPage').classList.add('show');
+  document.getElementById('runningFab').classList.remove('show');
+}
+function resetToConfig(){
+  if(evtSource){ evtSource.close(); evtSource = null; }
+  document.getElementById('progressPage').classList.remove('show');
+  document.getElementById('configPage').classList.remove('hide');
+  refreshRunningStatus();
+}
+function refreshRunningStatus(){
+  fetch('/api/status').then(r=>r.json()).then(s=>{
+    const onConfig = !document.getElementById('configPage').classList.contains('hide');
+    const fab = document.getElementById('runningFab');
+    if(s.running && onConfig) fab.classList.add('show');
+    else fab.classList.remove('show');
+    // 页面刷新后若服务端仍有任务在跑，自动接上进度流
+    if(s.running && !evtSource){
+      currentTaskId = s.task_id;
+      document.getElementById('progressCard').style.display='block';
+      document.getElementById('doneCard').style.display='none';
+      showProgressPage();
+      connectProgress();
+    }
+  }).catch(()=>{});
+}
+
+/* ================= 快捷键 (F6) ================= */
+document.addEventListener('keydown', (e)=>{
+  if((e.ctrlKey || e.metaKey) && e.key === 'Enter'){
+    e.preventDefault();
+    if(document.getElementById('configPage').classList.contains('hide')) showProgressPage();
+    else startScan();
+  } else if(e.key === 'Escape'){
+    if(document.getElementById('progressPage').classList.contains('show')) resetToConfig();
+    else hidePreview();
+  }
+});
+
+/* ================= 初始化 ================= */
+applyI18n();
+checkServerConfig();
+refreshRunningStatus();
+setInterval(()=>{ if(!evtSource) refreshRunningStatus(); }, 6000);
+</script>
+</body>
+</html>

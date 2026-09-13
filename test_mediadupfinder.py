@@ -240,3 +240,167 @@ class TestPairKey:
         a = {"path": "/a"}
         b = {"path": "/b"}
         assert mdf._pair_key(a, b) == mdf._pair_key(b, a)
+
+
+# ---------- 0.4.0 新增能力 ----------
+
+class TestNormalizeExtSet:
+    def test_comma_string(self):
+        assert mdf.normalize_ext_set("mp4,mkv") == {".mp4", ".mkv"}
+
+    def test_dots_and_case(self):
+        assert mdf.normalize_ext_set([".MKV", "MP4"]) == {".mkv", ".mp4"}
+
+    def test_mixed_separators(self):
+        assert mdf.normalize_ext_set("ts;rmvb avi") == {".ts", ".rmvb", ".avi"}
+
+    def test_empty_returns_none(self):
+        assert mdf.normalize_ext_set(None) is None
+        assert mdf.normalize_ext_set("") is None
+        assert mdf.normalize_ext_set(["", "  "]) is None
+
+
+class TestFilterAllowedRoots:
+    def test_no_allow_list_allows_all(self):
+        allowed, denied = mdf.filter_allowed_roots(["/a", "/b"], [])
+        assert allowed == ["/a", "/b"]
+        assert denied == []
+
+    def test_subpath_allowed(self, tmp_path):
+        base = tmp_path / "media"
+        sub = base / "sub"
+        sub.mkdir(parents=True)
+        allowed, denied = mdf.filter_allowed_roots([str(sub)], [str(base)])
+        assert allowed == [str(sub)]
+        assert denied == []
+
+    def test_outside_denied(self, tmp_path):
+        a = tmp_path / "a"
+        b = tmp_path / "b"
+        a.mkdir()
+        b.mkdir()
+        allowed, denied = mdf.filter_allowed_roots([str(b)], [str(a)])
+        assert allowed == []
+        assert denied == [str(b)]
+
+
+class TestScanControl:
+    def test_initial_state(self):
+        c = mdf.ScanControl()
+        assert not c.paused
+        assert not c.cancelled
+
+    def test_pause_and_resume(self):
+        c = mdf.ScanControl()
+        c.pause()
+        assert c.paused
+        c.resume()
+        assert not c.paused
+
+    def test_cancel_clears_pause(self):
+        c = mdf.ScanControl()
+        c.pause()
+        c.cancel()
+        assert c.cancelled
+        assert not c.paused
+
+    def test_wait_if_paused_blocks_until_resume(self):
+        import threading
+        import time
+        c = mdf.ScanControl()
+        c.pause()
+        done = threading.Event()
+
+        def worker():
+            c.wait_if_paused()
+            done.set()
+
+        th = threading.Thread(target=worker, daemon=True)
+        th.start()
+        time.sleep(0.3)
+        assert not done.is_set()
+        c.resume()
+        th.join(timeout=2)
+        assert done.is_set()
+
+
+class TestMetaCache:
+    def test_roundtrip(self, tmp_path):
+        p = tmp_path / "cache.json"
+        data = {"a.mp4": {"size": 10, "mtime": 1.5}}
+        mdf.save_meta_cache(p, data)
+        assert mdf.load_meta_cache(p) == data
+
+    def test_missing_file_returns_empty(self, tmp_path):
+        assert mdf.load_meta_cache(tmp_path / "nope.json") == {}
+
+    def test_corrupt_file_returns_empty(self, tmp_path):
+        p = tmp_path / "bad.json"
+        p.write_text("not json", encoding="utf-8")
+        assert mdf.load_meta_cache(p) == {}
+
+
+class TestEnumerateExtFilter:
+    def _make_files(self, tmp_path):
+        for name in ("a.mp4", "b.mkv", "c.txt"):
+            (tmp_path / name).write_bytes(b"0" * 100)
+
+    def test_include_only(self, tmp_path):
+        self._make_files(tmp_path)
+        files, roots, total = mdf._enumerate(
+            [str(tmp_path)], include_exts={".mp4"})
+        names = [os.path.basename(f["path"]) for f in files[str(tmp_path)]]
+        assert names == ["a.mp4"]
+        assert total == 1
+
+    def test_include_can_add_non_media(self, tmp_path):
+        self._make_files(tmp_path)
+        files, _, total = mdf._enumerate(
+            [str(tmp_path)], include_exts="txt")
+        names = [os.path.basename(f["path"]) for f in files[str(tmp_path)]]
+        assert names == ["c.txt"]
+        assert total == 1
+
+    def test_exclude_blacklist(self, tmp_path):
+        self._make_files(tmp_path)
+        files, _, total = mdf._enumerate(
+            [str(tmp_path)], exclude_exts={".mkv"})
+        names = [os.path.basename(f["path"]) for f in files[str(tmp_path)]]
+        assert names == ["a.mp4"]
+        assert total == 1
+
+    def test_min_size_filter(self, tmp_path):
+        (tmp_path / "big.mp4").write_bytes(b"0" * 5000)
+        (tmp_path / "small.mp4").write_bytes(b"0" * 10)
+        files, _, total = mdf._enumerate([str(tmp_path)], min_size_bytes=1000)
+        assert total == 1
+        assert files[str(tmp_path)][0]["size"] == 5000
+
+    def test_candidate_fields(self, tmp_path):
+        (tmp_path / "a.mp4").write_bytes(b"0" * 42)
+        files, roots, _ = mdf._enumerate([str(tmp_path)])
+        item = files[str(tmp_path)][0]
+        assert set(item) == {"path", "size", "mtime"}
+        assert item["size"] == 42
+        assert roots == [str(tmp_path)]
+
+    def test_missing_root_skipped(self, tmp_path):
+        files, roots, total = mdf._enumerate([str(tmp_path / "ghost")])
+        assert roots == []
+        assert total == 0
+
+
+class TestPreviewScan:
+    def test_empty_dir(self, tmp_path):
+        info = mdf.preview_scan([str(tmp_path)])
+        assert info["total_candidates"] == 0
+        assert info["est_seconds"] == 0.0
+        assert info["per_root"][str(tmp_path)] == 0
+
+    def test_counts_candidates(self, tmp_path):
+        for i in range(3):
+            (tmp_path / f"v{i}.mp4").write_bytes(b"0" * 128)
+        info = mdf.preview_scan([str(tmp_path)], sample_size=2)
+        assert info["total_candidates"] == 3
+        assert info["sample_size"] == 2
+        assert info["avg_ms"] >= 0

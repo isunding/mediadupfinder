@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 mediadupfinder.py — 媒体文件查重工具（按元数据分组）
@@ -16,7 +16,7 @@ mediadupfinder.py — 媒体文件查重工具（按元数据分组）
   python mediadupfinder.py --drives G-U --min-size-mb 100 --exclude-dir CHN
 """
 
-__version__ = "0.3.4"
+__version__ = "0.4.0"
 
 import argparse
 import json
@@ -24,6 +24,7 @@ import os
 import re
 import string
 import sys
+import threading
 import time
 from collections import defaultdict
 from datetime import datetime
@@ -71,6 +72,96 @@ AUDIO_EXTS = {
     ".wma", ".opus", ".ape", ".alac", ".aiff",
 }
 MEDIA_EXTS = VIDEO_EXTS | AUDIO_EXTS
+
+
+def normalize_ext_set(exts):
+    """把 'mp4,mkv' 或 ['mp4', '.MKV'] 归一化为 {'.mp4', '.mkv'}；空值返回 None。"""
+    if exts is None:
+        return None
+    if isinstance(exts, str):
+        exts = re.split(r"[;,，\s]+", exts)
+    out = set()
+    for e in exts:
+        e = str(e).strip().lower()
+        if not e:
+            continue
+        if not e.startswith("."):
+            e = "." + e
+        out.add(e)
+    return out or None
+
+
+class ScanControl:
+    """线程安全的暂停 / 继续 / 取消控制对象。"""
+
+    def __init__(self):
+        self._pause = threading.Event()
+        self._cancel = threading.Event()
+
+    def pause(self):
+        self._pause.set()
+
+    def resume(self):
+        self._pause.clear()
+
+    def cancel(self):
+        self._cancel.set()
+        self._pause.clear()
+
+    @property
+    def paused(self):
+        return self._pause.is_set()
+
+    @property
+    def cancelled(self):
+        return self._cancel.is_set()
+
+    def wait_if_paused(self):
+        """暂停时阻塞当前线程，直到 resume() 或 cancel()。"""
+        while self._pause.is_set() and not self._cancel.is_set():
+            time.sleep(0.2)
+
+
+def filter_allowed_roots(roots, allow_roots):
+    """S1：按白名单过滤根路径，返回 (允许的根, 被拒绝的根)。allow_roots 为空表示不限制。"""
+    if not allow_roots:
+        return list(roots), []
+    norms = []
+    for a in allow_roots:
+        if not str(a).strip():
+            continue
+        norms.append(os.path.normcase(os.path.abspath(os.path.expanduser(str(a)))))
+    if not norms:
+        return list(roots), []
+    allowed, denied = [], []
+    for r in roots:
+        rn = os.path.normcase(os.path.abspath(r))
+        ok = any(rn == a or rn.startswith(a.rstrip("\\/") + os.sep) for a in norms)
+        (allowed if ok else denied).append(r)
+    return allowed, denied
+
+
+# ---------- 元数据缓存（B5 增量扫描） ----------
+def load_meta_cache(cache_path):
+    """读取元数据缓存，格式 {path: {size, mtime, meta}}。失败返回空 dict。"""
+    try:
+        with open(cache_path, "r", encoding="utf-8") as fp:
+            data = json.load(fp)
+        if isinstance(data, dict):
+            return {k: v for k, v in data.items() if isinstance(v, dict)}
+    except Exception:
+        pass
+    return {}
+
+
+def save_meta_cache(cache_path, cache):
+    """把缓存写回磁盘（失败只告警，不影响扫描）。"""
+    try:
+        Path(cache_path).write_text(
+            json.dumps(cache, ensure_ascii=False), encoding="utf-8"
+        )
+    except Exception as e:
+        print(f"警告：缓存写入失败 {cache_path}: {e}")
 
 
 # ---------- 数值安全转换 ----------
@@ -158,36 +249,22 @@ def extract_metadata(path):
     }, None
 
 
-def scan_folder(roots, min_size_bytes=0, exclude_dir_keywords=None,
-                progress_every=500, workers=None):
+def _enumerate(roots, min_size_bytes=0, exclude_dir_keywords=None,
+               include_exts=None, exclude_exts=None, progress_callback=None):
+    """枚举候选媒体文件（不解析元数据）。
+
+    返回 (候选表, 扫描的根列表, 总候选数)；候选表: {root: [ {path,size,mtime} ]}
     """
-    递归扫描多个根目录，返回 (元数据列表, 失败列表[{path, reason}], 扫描的根列表)
-    使用线程池并行解析媒体元数据。
-    """
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-
-    BATCH = 2000
-
-    try:
-        from tqdm import tqdm as _tqdm
-        _HAS_TQDM = True
-    except ImportError:
-        _HAS_TQDM = False
-
-    if workers is None or workers < 1:
-        workers = min(16, (os.cpu_count() or 4) * 2)
+    include_set = normalize_ext_set(include_exts)
+    exclude_set = normalize_ext_set(exclude_exts) or set()
 
     if exclude_dir_keywords is None:
         exclude_dir_keywords = []
     exclude_keywords = [k.upper() for k in exclude_dir_keywords if k]
 
-    scanned_roots = []
-    start_time = time.time()
     drive_files = defaultdict(list)
-
-    def _parse(p):
-        meta, err = extract_metadata(p)
-        return meta, p, err
+    scanned_roots = []
+    total = 0
 
     for root in roots:
         if not os.path.exists(root):
@@ -206,33 +283,115 @@ def scan_folder(roots, min_size_bytes=0, exclude_dir_keywords=None,
 
             for fname in filenames:
                 ext = os.path.splitext(fname)[1].lower()
-                if ext not in MEDIA_EXTS:
+                if include_set is not None:
+                    if ext not in include_set:
+                        continue
+                elif ext not in MEDIA_EXTS:
+                    continue
+                if ext in exclude_set:
                     continue
                 try:
                     full = os.path.join(dirpath, fname)
-                    if os.path.getsize(full) < min_size_bytes:
+                    st = os.stat(full)
+                    if st.st_size < min_size_bytes:
                         continue
                 except OSError:
                     continue
-                candidates.append(full)
-
-        if not candidates:
-            continue
+                candidates.append({
+                    "path": full,
+                    "size": st.st_size,
+                    "mtime": st.st_mtime,
+                })
 
         drive_files[root] = candidates
+        total += len(candidates)
+        if progress_callback:
+            try:
+                progress_callback("enumerate", total, 0,
+                                  f"枚举中... 已发现 {total} 个候选文件（{root}）")
+            except Exception:
+                pass
+
+    return drive_files, scanned_roots, total
+
+
+def scan_folder(roots, min_size_bytes=0, exclude_dir_keywords=None,
+                progress_every=500, workers=None, progress_callback=None,
+                include_exts=None, exclude_exts=None, cache=None,
+                use_cache=True, control=None, detail=None):
+    """
+    递归扫描多个根目录，返回 (元数据列表, 失败列表[{path, reason}], 扫描的根列表)
+    使用线程池并行解析媒体元数据。
+
+    progress_callback(phase, current, total, message) 可选回调：
+      phase: "enumerate" | "parse" | "done"
+      current/total: 进度数值
+      message: 人类可读文本（含当前盘符 / 文件名，便于前端展示）
+
+    include_exts / exclude_exts: B4 后缀白名单 / 黑名单
+    cache / use_cache:           B5 元数据缓存（按 path+size+mtime 命中跳过解析）
+    control:                     ScanControl 对象，支持暂停 / 取消（P5）
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    BATCH = 2000
+
+    try:
+        from tqdm import tqdm as _tqdm
+        _HAS_TQDM = True
+    except ImportError:
+        _HAS_TQDM = False
+
+    if workers is None or workers < 1:
+        workers = min(16, (os.cpu_count() or 4) * 2)
+
+    def _cb(phase, current, total, msg):
+        if progress_callback:
+            try:
+                progress_callback(phase, current, total, msg)
+            except Exception:
+                pass
+
+    def _cancelled():
+        return control is not None and control.cancelled
+
+    start_time = time.time()
+    _cb("enumerate", 0, 0, "开始扫描文件系统...")
+
+    drive_files, scanned_roots, total_candidates = _enumerate(
+        roots, min_size_bytes, exclude_dir_keywords,
+        include_exts, exclude_exts, progress_callback,
+    )
 
     drive_total = len(scanned_roots)
-
     for idx, root in enumerate(scanned_roots, 1):
         print(f"[{idx}/{drive_total}] 扫描盘符: {root}  "
               f"({len(drive_files[root])} 个候选文件, 线程数: {workers})")
+
+    _cb("enumerate", total_candidates, total_candidates,
+        f"发现 {total_candidates} 个候选文件，开始解析元数据...")
 
     metas = []
     failed = []
     count = 0
     failed_count = 0
+    cache_hits = 0
+    seen_paths = {it["path"] for r in scanned_roots for it in drive_files.get(r, [])}
 
-    with ThreadPoolExecutor(max_workers=workers) as pool:
+    def _parse(item):
+        p = item["path"]
+        if use_cache and cache is not None:
+            ent = cache.get(p)
+            if (ent and ent.get("size") == item["size"]
+                    and abs(ent.get("mtime", 0) - item["mtime"]) < 1.0):
+                return ent.get("meta"), p, None, True
+        meta, err = extract_metadata(p)
+        if meta is not None and use_cache and cache is not None:
+            cache[p] = {"size": item["size"], "mtime": item["mtime"], "meta": meta}
+        return meta, p, err, False
+
+    pool = ThreadPoolExecutor(max_workers=workers)
+    try:
         for idx, root in enumerate(scanned_roots, 1):
             candidates = drive_files.get(root, [])
             if not candidates:
@@ -243,8 +402,13 @@ def scan_folder(roots, min_size_bytes=0, exclude_dir_keywords=None,
             drive_fail = 0
 
             for bi in range(0, len(candidates), BATCH):
+                if _cancelled():
+                    break
+                if control is not None:
+                    control.wait_if_paused()
+
                 batch = candidates[bi:bi + BATCH]
-                futures = {pool.submit(_parse, p): p for p in batch}
+                futures = {pool.submit(_parse, it): it["path"] for it in batch}
 
                 iterator = as_completed(futures)
                 if _HAS_TQDM:
@@ -257,7 +421,12 @@ def scan_folder(roots, min_size_bytes=0, exclude_dir_keywords=None,
                     )
 
                 for fut in iterator:
-                    meta, path_str, err = fut.result()
+                    if _cancelled():
+                        break
+                    if control is not None:
+                        control.wait_if_paused()
+
+                    meta, path_str, err, from_cache = fut.result()
                     if meta is None:
                         failed.append({"path": path_str, "reason": err or "unknown"})
                         failed_count += 1
@@ -266,12 +435,19 @@ def scan_folder(roots, min_size_bytes=0, exclude_dir_keywords=None,
                         metas.append(meta)
                         count += 1
                         drive_ok += 1
-                        if not _HAS_TQDM and count % progress_every == 0:
-                            elapsed = time.time() - start_time
-                            fps = count / elapsed if elapsed > 0 else 0
-                            print(f"  已读取 {count} 个文件 | "
-                                  f"{fps:.1f} 文件/秒 | "
-                                  f"失败 {failed_count}")
+                        if from_cache:
+                            cache_hits += 1
+                    name = os.path.basename(path_str)
+                    if detail is not None:
+                        detail.update({
+                            "root": root, "file": name,
+                            "count": count, "total": total_candidates,
+                            "failed": failed_count,
+                        })
+                    _cb("parse", count, total_candidates,
+                        f"正在解析 {root} 第 {count}/{total_candidates} 个：{name}"
+                        + (f"（失败 {failed_count}）" if failed_count else "")
+                        + (f"（缓存命中 {cache_hits}）" if cache_hits else ""))
 
             drive_elapsed = time.time() - drive_start
             drive_fps = drive_ok / drive_elapsed if drive_elapsed > 0 else 0
@@ -279,11 +455,88 @@ def scan_folder(roots, min_size_bytes=0, exclude_dir_keywords=None,
                   + (f"  {drive_fail} 失败" if drive_fail else "")
                   + f"  耗时 {drive_elapsed:.1f}s  ({drive_fps:.1f} 文件/秒)\n")
 
+            if _cancelled():
+                break
+    finally:
+        if _cancelled():
+            try:
+                pool.shutdown(wait=False, cancel_futures=True)
+            except TypeError:
+                pool.shutdown(wait=False)
+        else:
+            pool.shutdown(wait=True)
+
+    # 清理缓存中本次未枚举到的路径（已删除 / 已移出扫描范围）
+    if use_cache and cache is not None:
+        for k in [k for k in cache.keys() if k not in seen_paths]:
+            cache.pop(k, None)
+
     total_elapsed = time.time() - start_time
-    print(f"共读取 {count} 个文件  失败 {failed_count}  "
-          f"总耗时 {total_elapsed:.1f}s  "
-          f"({count / total_elapsed:.1f} 文件/秒)")
+    if total_elapsed > 0:
+        print(f"共读取 {count} 个文件  失败 {failed_count}  "
+              f"总耗时 {total_elapsed:.1f}s  "
+              f"({count / total_elapsed:.1f} 文件/秒)"
+              + (f"  缓存命中 {cache_hits}" if cache_hits else ""))
+    if _cancelled():
+        _cb("parse", count, total_candidates, f"已取消：已成功解析 {count} 个文件")
+    else:
+        _cb("parse", count, total_candidates,
+            f"解析完成: 成功 {count}，失败 {failed_count}"
+            + (f"，缓存命中 {cache_hits}" if cache_hits else ""))
     return metas, failed, scanned_roots
+
+
+def preview_scan(roots, min_size_bytes=0, exclude_dir_keywords=None,
+                 include_exts=None, exclude_exts=None, sample_size=32,
+                 progress_callback=None, control=None):
+    """B3：只枚举 + 抽样解析少量文件，估算总耗时，不写任何结果。
+
+    返回 dict: total_candidates / roots / per_root / sample_size /
+             sample_seconds / avg_ms / est_seconds
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    if progress_callback:
+        try:
+            progress_callback("enumerate", 0, 0, "正在枚举候选文件...")
+        except Exception:
+            pass
+
+    drive_files, scanned_roots, total = _enumerate(
+        roots, min_size_bytes, exclude_dir_keywords,
+        include_exts, exclude_exts, progress_callback,
+    )
+
+    est = {
+        "total_candidates": total,
+        "roots": scanned_roots,
+        "per_root": {r: len(drive_files.get(r, [])) for r in scanned_roots},
+        "sample_size": 0,
+        "sample_seconds": 0.0,
+        "avg_ms": 0.0,
+        "est_seconds": 0.0,
+    }
+    if total == 0 or (control is not None and control.cancelled):
+        return est
+
+    import random
+    all_items = [it for r in scanned_roots for it in drive_files.get(r, [])]
+    k = min(sample_size, len(all_items))
+    sample = random.sample(all_items, k)
+
+    t0 = time.time()
+    p = min(k, 8) or 1
+    with ThreadPoolExecutor(max_workers=p) as pool:
+        list(pool.map(lambda it: extract_metadata(it["path"]), sample))
+    elapsed = time.time() - t0
+
+    workers = min(16, (os.cpu_count() or 4) * 2)
+    speedup = max(1.0, min(workers / p, 4.0))
+    est["sample_size"] = k
+    est["sample_seconds"] = round(elapsed, 2)
+    est["avg_ms"] = round(elapsed / k * 1000, 1) if k else 0.0
+    est["est_seconds"] = round((total * elapsed / k) / speedup, 1) if k else 0.0
+    return est
 
 
 # ---------- 文件名归一化 ----------
@@ -792,6 +1045,20 @@ def main():
                              "传 --exclude-dir '' 则不排除任何目录）")
     parser.add_argument("--workers", type=int, default=None,
                         help="线程池并发数（默认 min(16, cpu*2)）")
+    parser.add_argument("--no-strong", action="store_true", help="跳过强候选分组")
+    parser.add_argument("--no-mid", action="store_true", help="跳过中候选分组")
+    parser.add_argument("--no-weak", action="store_true", help="跳过弱候选分组")
+    parser.add_argument("--ext", default=None,
+                        help="只扫描指定后缀，逗号分隔（如 mp4,mkv）")
+    parser.add_argument("--exclude-ext", default=None,
+                        help="跳过指定后缀，逗号分隔（如 ts,rmvb）")
+    parser.add_argument("--cache-file", default=".mdf_cache.json",
+                        help="元数据缓存文件，用于增量扫描（默认 .mdf_cache.json）")
+    parser.add_argument("--no-cache", action="store_true", help="禁用元数据缓存（每次全量解析）")
+    parser.add_argument("--allow-root", action="append", default=None,
+                        help="只允许扫描这些根路径（可多次指定，防止误扫系统盘）")
+    parser.add_argument("--preview", action="store_true",
+                        help="只枚举并抽样预估耗时，不解析全量、不写结果")
     args = parser.parse_args()
 
     if args.output is None:
@@ -838,12 +1105,56 @@ def main():
             sys.exit(1)
         print(f"使用指定线程数：{args.workers}")
 
+    # S1：路径白名单
+    allowed, denied = filter_allowed_roots([str(r) for r in roots], args.allow_root)
+    if denied:
+        print("错误：以下路径不在 --allow-root 白名单内：")
+        for d in denied:
+            print(f"  - {d}")
+        sys.exit(1)
+    roots = allowed
+    if args.allow_root:
+        print(f"白名单生效，允许扫描：{', '.join(roots)}")
+
+    # B3：采样预览
+    if args.preview:
+        print("采样预览中（仅枚举 + 抽样，不写结果）...")
+        info = preview_scan(
+            roots,
+            min_size_bytes=min_size,
+            exclude_dir_keywords=exclude_list,
+            include_exts=args.ext,
+            exclude_exts=args.exclude_ext,
+        )
+        print(f"\n发现 {info['total_candidates']} 个候选文件")
+        for r, c in info["per_root"].items():
+            print(f"  {r}  {c} 个")
+        if info["sample_size"]:
+            print(f"抽样 {info['sample_size']} 个，平均 {info['avg_ms']} ms/文件，"
+                  f"预计解析耗时 {info['est_seconds'] / 60:.1f} 分钟")
+        else:
+            print("没有可解析的候选文件")
+        return
+
+    # B5：加载元数据缓存
+    cache = None
+    if not args.no_cache:
+        cache = load_meta_cache(args.cache_file)
+        if cache:
+            print(f"已加载缓存：{len(cache)} 条（{args.cache_file}）")
+
     metas, failed, scanned_roots = scan_folder(
         roots,
         min_size_bytes=min_size,
         exclude_dir_keywords=exclude_list,
         workers=args.workers,
+        include_exts=args.ext,
+        exclude_exts=args.exclude_ext,
+        cache=cache,
+        use_cache=not args.no_cache,
     )
+    if cache is not None:
+        save_meta_cache(args.cache_file, cache)
     print(f"成功读取 {len(metas)} 个文件，失败 {len(failed)} 个")
     if failed:
         reason_counts = defaultdict(int)
@@ -859,11 +1170,23 @@ def main():
     claimed_pairs = set()
 
     print("正在分组...")
-    strong = find_strong_candidates(metas, tol_sec=args.duration_tol, claimed_pairs=claimed_pairs)
-    mid = find_mid_candidates(metas, sim_threshold=args.name_sim,
-                              strong_tol_sec=args.duration_tol, claimed_pairs=claimed_pairs)
-    weak = find_weak_candidates(metas, tol_sec=args.weak_duration_tol,
-                                strong_tol_sec=args.duration_tol, claimed_pairs=claimed_pairs)
+    if args.no_strong:
+        strong = []
+        print("  [跳过] 强候选")
+    else:
+        strong = find_strong_candidates(metas, tol_sec=args.duration_tol, claimed_pairs=claimed_pairs)
+    if args.no_mid:
+        mid = []
+        print("  [跳过] 中候选")
+    else:
+        mid = find_mid_candidates(metas, sim_threshold=args.name_sim,
+                                  strong_tol_sec=args.duration_tol, claimed_pairs=claimed_pairs)
+    if args.no_weak:
+        weak = []
+        print("  [跳过] 弱候选")
+    else:
+        weak = find_weak_candidates(metas, tol_sec=args.weak_duration_tol,
+                                    strong_tol_sec=args.duration_tol, claimed_pairs=claimed_pairs)
 
     result = build_result(scanned_roots, strong, mid, weak, failed, len(metas))
 
