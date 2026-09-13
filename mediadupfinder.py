@@ -123,7 +123,7 @@ def extract_metadata(path):
 
     if width and height:
         resolution = f"{width}x{height}"
-    elif video is None:
+    elif video is None and audio is not None:
         resolution = "audio"
     else:
         resolution = "unknown"
@@ -425,7 +425,9 @@ def find_mid_candidates(files, sim_threshold: float = 0.8,
                 if pk in used_pairs:
                     continue
                 same_res = a["resolution"] == b["resolution"]
-                if a["resolution"] == "audio":
+                if not same_res:
+                    same_br = False
+                elif a["resolution"] == "audio":
                     same_br = a["audio_bitrate"] == b["audio_bitrate"]
                 else:
                     same_br = a["video_bitrate"] == b["video_bitrate"]
