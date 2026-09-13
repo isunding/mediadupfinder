@@ -102,6 +102,19 @@ select{background:var(--card);border:1px solid var(--border);border-radius:8px;p
 .group.open .toggle-arrow{transform:rotate(90deg)}
 .group-actions{display:flex;gap:8px}
 
+.cat-badge{display:inline-block;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600;margin-left:4px}
+.cat-badge.strong{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.35)}
+.cat-badge.mid{background:rgba(249,115,22,.15);color:var(--orange);border:1px solid rgba(249,115,22,.35)}
+.cat-badge.weak{background:rgba(234,179,8,.15);color:var(--yellow);border:1px solid rgba(234,179,8,.35)}
+
+.pagination{display:flex;justify-content:center;align-items:center;gap:6px;padding:18px 12px;margin-top:12px;flex-wrap:wrap}
+.pagination .pg-info{color:var(--muted);font-size:12px;margin-right:8px}
+.pagination .pg-btn{min-width:34px;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--card2);color:var(--text);cursor:pointer;font-size:13px;font-weight:500}
+.pagination .pg-btn:hover:not(:disabled){border-color:var(--accent);background:var(--card)}
+.pagination .pg-btn.active{background:var(--accent);border-color:var(--accent)}
+.pagination .pg-btn:disabled{opacity:.35;cursor:default}
+.pagination .pg-ellipsis{color:var(--muted);font-size:13px;padding:0 4px}
+
 @media(max-width:768px){
   .header{padding:14px}
   .container{padding:14px}
@@ -142,15 +155,19 @@ select{background:var(--card);border:1px solid var(--border);border-radius:8px;p
   <div class="toolbar" id="toolbar" style="display:none">
     <input class="search" id="search" placeholder="🔍 搜索文件名或路径...">
     <select id="filterReason"><option value="">全部原因</option></select>
+    <select id="filterCat">
+      <option value="">全部分类</option>
+      <option value="strong">强候选</option>
+      <option value="mid">中候选</option>
+      <option value="weak">弱候选</option>
+    </select>
     <button class="btn btn-sm" onclick="expandAll()">全部展开</button>
     <button class="btn btn-sm" onclick="collapseAll()">全部折叠</button>
     <button class="btn btn-sm btn-danger" onclick="clearAllMarks()">清空标记</button>
   </div>
 
   <div id="groups"></div>
-  <div class="load-more" id="loadMore" style="display:none">
-    <button class="btn btn-primary" onclick="loadNextBatch()">加载更多（<span id="remainingCount"></span> 组未显示）</button>
-  </div>
+  <div class="pagination" id="pagination" style="display:none"></div>
 
 </div>
 
@@ -166,10 +183,10 @@ select{background:var(--card);border:1px solid var(--border);border-radius:8px;p
 <script>
 const MB = 1024**2, GB = 1024**3, KB = 1024;
 const WORKER_JSON_THRESHOLD = 200 * MB;
-const BATCH_THRESHOLD_GROUPS = 200;
+const PAGE_SIZE = 50;
 
 let groups = [], filteredGroups = [], marked = new Set(), EXPANDED = new Set();
-let BATCH_SIZE = 50;
+let currentPage = 1;
 
 function fmtSize(b){
   if(b>=GB) return (b/GB).toFixed(2)+' GB';
@@ -285,10 +302,15 @@ async function fallbackMainThread(file){
 }
 
 function handleParsed(data, file, workerType){
-  groups = (data.strong_candidates || []).slice().sort((a,b)=>b.wasted_bytes - a.wasted_bytes);
-
-  if(groups.length > BATCH_THRESHOLD_GROUPS) BATCH_SIZE = 50;
-  else BATCH_SIZE = groups.length;
+  const merged = [];
+  const catMap = {strong_candidates:'strong', mid_candidates:'mid', weak_candidates:'weak'};
+  for(const [key, cat] of Object.entries(catMap)){
+    const arr = data[key];
+    if(Array.isArray(arr)){
+      for(const g of arr){ g.cat = cat; merged.push(g); }
+    }
+  }
+  groups = merged.sort((a,b)=>b.wasted_bytes - a.wasted_bytes);
 
   const banner = document.getElementById('warnBanner');
   banner.classList.remove('show');
@@ -314,10 +336,10 @@ function resetUI(){
   document.getElementById('stats').style.display='none';
   document.getElementById('toolbar').style.display='none';
   document.getElementById('groups').innerHTML='';
-  document.getElementById('loadMore').style.display='none';
+  document.getElementById('pagination').style.display='none';
   document.getElementById('actionBar').style.display='none';
   hideProgress();
-  groups=[]; filteredGroups=[]; marked.clear(); EXPANDED.clear();
+  groups=[]; filteredGroups=[]; marked.clear(); EXPANDED.clear(); currentPage=1;
 }
 
 function initUI(){
@@ -327,10 +349,11 @@ function initUI(){
     const o = document.createElement('option'); o.value=r; o.textContent=r; sel.appendChild(o);
   });
   sel.onchange = renderGroups;
+  document.getElementById('filterCat').onchange = renderGroups;
   document.getElementById('stats').style.display='grid';
   document.getElementById('toolbar').style.display='flex';
   document.getElementById('stats').innerHTML = buildStats();
-  document.getElementById('search').oninput = renderGroups;
+  document.getElementById('search').oninput = ()=>{ currentPage=1; renderGroups(); };
 }
 
 function buildStats(){
@@ -338,8 +361,11 @@ function buildStats(){
   const totalWasted = groups.reduce((s,g)=>s+g.wasted_bytes,0);
   const maxG = groups.reduce((m,g)=>!m||g.wasted_bytes>m.wasted_bytes?g:m,null);
   const avg = groups.length ? totalWasted/groups.length : 0;
+  const sc = groups.filter(g=>g.cat==='strong').length;
+  const mc = groups.filter(g=>g.cat==='mid').length;
+  const wc = groups.filter(g=>g.cat==='weak').length;
   return `
-    <div class="stat-card accent"><div class="label">重复分组</div><div class="value">${groups.length.toLocaleString()}</div><div class="sub">共 ${totalFiles.toLocaleString()} 个文件</div></div>
+    <div class="stat-card accent"><div class="label">重复分组</div><div class="value">${groups.length.toLocaleString()}</div><div class="sub">强 ${sc} · 中 ${mc} · 弱 ${wc} · 共 ${totalFiles.toLocaleString()} 个文件</div></div>
     <div class="stat-card red"><div class="label">可释放空间</div><div class="value">${fmtSize(totalWasted)}</div><div class="sub">理论最大节省</div></div>
     <div class="stat-card yellow"><div class="label">平均浪费 / 组</div><div class="value">${fmtSize(avg)}</div></div>
     <div class="stat-card green"><div class="label">最大浪费组</div><div class="value" style="font-size:15px">${maxG?maxG.group_id:'-'}</div><div class="sub">${maxG?fmtSize(maxG.wasted_bytes):''}</div></div>
@@ -349,7 +375,9 @@ function buildStats(){
 function renderAll(){
   const kw = (document.getElementById('search').value||'').toLowerCase().trim();
   const reasonFilter = document.getElementById('filterReason').value;
+  const catFilter = document.getElementById('filterCat').value;
   filteredGroups = groups.filter(g=>{
+    if(catFilter && g.cat !== catFilter) return false;
     if(reasonFilter && g.reason !== reasonFilter) return false;
     if(kw){
       const hay = g.files.map(f=>f.name+' '+f.path).join(' ').toLowerCase();
@@ -359,43 +387,62 @@ function renderAll(){
   });
 
   const container = document.getElementById('groups');
+  const pgEl = document.getElementById('pagination');
   if(filteredGroups.length===0){
     container.innerHTML = `<div class="empty"><div class="icon">📭</div>没有匹配的结果</div>`;
-    document.getElementById('loadMore').style.display='none';
+    pgEl.style.display='none';
     updateActionBar(); return;
   }
 
-  const batchSize = filteredGroups.length > BATCH_THRESHOLD_GROUPS ? BATCH_SIZE : filteredGroups.length;
-  renderBatched(0, batchSize);
-}
+  const totalPages = Math.max(1, Math.ceil(filteredGroups.length / PAGE_SIZE));
+  if(currentPage > totalPages) currentPage = totalPages;
+  if(currentPage < 1) currentPage = 1;
 
-function renderBatched(startIdx, batchSize){
-  const container = document.getElementById('groups');
-  if(startIdx===0) container.innerHTML = '';
-  const endIdx = Math.min(startIdx + batchSize, filteredGroups.length);
-  const slice = filteredGroups.slice(startIdx, endIdx);
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const slice = filteredGroups.slice(start, start + PAGE_SIZE);
 
   let html = '';
   for(const g of slice) html += groupHTML(g);
+  container.innerHTML = html;
 
-  const frag = document.createDocumentFragment();
-  const div = document.createElement('div');
-  div.innerHTML = html;
-  while(div.firstChild) frag.appendChild(div.firstChild);
-  container.appendChild(frag);
-
-  if(endIdx < filteredGroups.length){
-    document.getElementById('loadMore').style.display='block';
-    document.getElementById('remainingCount').textContent = (filteredGroups.length - endIdx).toLocaleString();
-  }else{
-    document.getElementById('loadMore').style.display='none';
-  }
+  renderPagination(totalPages);
   updateActionBar();
 }
 
-function loadNextBatch(){
-  const shown = document.querySelectorAll('.group').length;
-  renderBatched(shown, BATCH_SIZE);
+function renderPagination(totalPages){
+  const el = document.getElementById('pagination');
+  if(totalPages <= 1){ el.style.display='none'; return; }
+  el.style.display='flex';
+
+  const totalItems = filteredGroups.length;
+  const start = (currentPage - 1) * PAGE_SIZE + 1;
+  const end = Math.min(start + PAGE_SIZE - 1, totalItems);
+
+  let html = `<span class="pg-info">显示 ${start.toLocaleString()}-${end.toLocaleString()} / ${totalItems.toLocaleString()} 组 · 共 ${totalPages} 页</span>`;
+
+  html += `<button class="pg-btn" ${currentPage===1?'disabled':''} onclick="gotoPage(${currentPage-1})">‹ 上一页</button>`;
+
+  const showSet = new Set([1, totalPages]);
+  for(let p = currentPage - 2; p <= currentPage + 2; p++){
+    if(p >= 1 && p <= totalPages) showSet.add(p);
+  }
+  const pages = [...showSet].sort((a,b)=>a-b);
+
+  let prev = 0;
+  for(const p of pages){
+    if(p - prev > 1) html += `<span class="pg-ellipsis">…</span>`;
+    html += `<button class="pg-btn ${p===currentPage?'active':''}" onclick="gotoPage(${p})">${p}</button>`;
+    prev = p;
+  }
+
+  html += `<button class="pg-btn" ${currentPage===totalPages?'disabled':''} onclick="gotoPage(${currentPage+1})">下一页 ›</button>`;
+
+  el.innerHTML = html;
+}
+
+function gotoPage(p){
+  currentPage = p;
+  renderAll();
 }
 
 function groupHTML(g){
@@ -425,11 +472,13 @@ function groupHTML(g){
     </tr>`;
   }).join('');
 
+  const catLabel = {strong:'强候选', mid:'中候选', weak:'弱候选'}[g.cat] || '';
   return `<div class="group ${isOpen?'open':''}" data-gid="${g.group_id}">
     <div class="group-header" data-action="toggle-group">
       <div class="group-title">
         <span class="toggle-arrow">▶</span>
         <span class="group-id">${g.group_id}</span>
+        <span class="cat-badge ${g.cat}">${catLabel}</span>
         <div class="group-info">
           <span class="chip warn">⚠ ${g.reason}</span>
           <span class="chip">${g.file_count} 个文件</span>

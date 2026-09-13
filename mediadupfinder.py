@@ -16,7 +16,7 @@ mediadupfinder.py — 媒体文件查重工具（按元数据分组）
   python mediadupfinder.py --drives G-U --min-size-mb 100 --exclude-dir CHN
 """
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 
 import argparse
 import json
