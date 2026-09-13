@@ -763,8 +763,10 @@ def main():
     src_group.add_argument("folder", nargs="?", help="要扫描的文件夹")
     src_group.add_argument("--drives", default=None, help="盘符范围，如 G-U，表示扫描 G: 到 U: 的所有硬盘")
     parser.add_argument("-o", "--output", default="dup_result.json", help="输出 JSON 路径")
-    parser.add_argument("--csv", default=None, help="额外输出 CSV 路径")
-    parser.add_argument("--html", default=None, help="额外输出 HTML 路径")
+    parser.add_argument("--csv", default=None, help="CSV 输出路径（默认与 -o 同名，扩展名 .csv）")
+    parser.add_argument("--html", default=None, help="HTML 输出路径（默认与 -o 同名，扩展名 .html）")
+    parser.add_argument("--no-csv", action="store_true", help="跳过 CSV 输出")
+    parser.add_argument("--no-html", action="store_true", help="跳过 HTML 输出")
     parser.add_argument("--dry-run", action="store_true",
                         help="只打印摘要，不写任何结果文件")
     parser.add_argument("--min-size-mb", type=float, default=100, help="忽略小于该大小(MB)的文件，默认 100")
@@ -858,13 +860,15 @@ def main():
         json.dump(result, fp, ensure_ascii=False, indent=2)
     print(f"\nJSON 已写入：{out_path.resolve()}")
 
-    if args.csv:
-        export_csv(result, args.csv)
-        print(f"CSV 已写入：{Path(args.csv).resolve()}")
+    if not args.no_csv:
+        csv_path = args.csv or str(out_path.with_suffix(".csv"))
+        export_csv(result, csv_path)
+        print(f"CSV 已写入：{Path(csv_path).resolve()}")
 
-    if args.html:
-        export_html(result, args.html)
-        print(f"HTML 已写入：{Path(args.html).resolve()}")
+    if not args.no_html:
+        html_path = args.html or str(out_path.with_suffix(".html"))
+        export_html(result, html_path)
+        print(f"HTML 已写入：{Path(html_path).resolve()}")
 
 
 if __name__ == "__main__":
