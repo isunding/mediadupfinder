@@ -363,7 +363,7 @@ def find_strong_candidates(files, tol_sec: float = 1.0, claimed_pairs=None):
                     for j in range(i + 1, len(members)):
                         claimed_pairs.add(_pair_key(members[i], members[j]))
             groups.append({
-                "reason": f"大小完全相同 + 时长误差 ≤ {tol_sec}s",
+                "reason": "大小相同 + 时长相近",
                 "files": members,
             })
     return groups
@@ -405,7 +405,7 @@ def find_mid_candidates(files, sim_threshold: float = 0.8,
                     if claimed_pairs is not None:
                         claimed_pairs.add(pk)
                     groups.append({
-                        "reason": f"文件名相似({sim:.2f}) + 分辨率/码率相同",
+                        "reason": "文件名相似 + 分辨率/码率相同",
                         "files": [a, b],
                     })
 
@@ -440,12 +440,9 @@ def find_mid_candidates(files, sim_threshold: float = 0.8,
                     claimed_pairs.add(pk)
                 diffs = []
                 if not same_res:
-                    diffs.append(f"分辨率 {a['resolution']} vs {b['resolution']}")
+                    diffs.append("分辨率不同")
                 if not same_br:
-                    if a["resolution"] == "audio":
-                        diffs.append(f"音频码率 {a['audio_bitrate']} vs {b['audio_bitrate']}")
-                    else:
-                        diffs.append(f"视频码率 {a['video_bitrate']} vs {b['video_bitrate']}")
+                    diffs.append("码率不同")
                 groups.append({
                     "reason": "文件名相同 + " + " / ".join(diffs),
                     "files": [a, b],
@@ -476,7 +473,7 @@ def find_weak_candidates(files, tol_sec: float = 2.0,
                 if a["size"] == b["size"]:
                     if abs(a["duration"] - b["duration"]) <= strong_tol_sec:
                         continue
-                    size_note = f"大小相同但时长差 > {strong_tol_sec}s"
+                    size_note = "大小相同"
                 else:
                     size_note = "大小不同"
                 pk = _pair_key(a, b)
@@ -488,7 +485,7 @@ def find_weak_candidates(files, tol_sec: float = 2.0,
                 if claimed_pairs is not None:
                     claimed_pairs.add(pk)
                 groups.append({
-                    "reason": f"时长接近(≤{tol_sec}s) + 分辨率相同 + {size_note}",
+                    "reason": "时长相近 + 分辨率相同 + " + size_note,
                     "files": [a, b],
                 })
     return groups
