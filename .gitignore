@@ -7,11 +7,15 @@ venv/
 
 # scan output
 dup_result.*
+dup_result_*
 *_result*.csv
 *_report*.html
 *dumpresult*
 
 # web.py 运行时产物
+config/
+logs/
+history/
 .mdf_cache.json
 .web.lock
 scan_history.json

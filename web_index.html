@@ -80,6 +80,26 @@ input.invalid, select.invalid{border-color:#ef4444 !important;background:rgba(23
 
 .divider{height:1px;background:var(--border);margin:16px 0}
 .small-note{font-size:11px;color:var(--muted);margin-top:4px}
+
+/* 帮助圆圈 + tooltip */
+.help{
+  display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;
+  width:16px;height:16px;border-radius:50%;background:var(--card2);
+  border:1px solid var(--border);color:var(--muted);
+  font-size:11px;font-weight:600;line-height:1;cursor:help;
+  position:relative;user-select:none;transition:all .15s
+}
+.help:hover,.help:focus{border-color:var(--accent2);color:var(--accent2);outline:none}
+.help::after{
+  content:attr(data-tip);position:absolute;left:0;top:150%;
+  background:#0a0f1a;color:#e4e7ef;border:1px solid var(--border);
+  border-radius:8px;padding:8px 11px;font-size:12px;font-weight:400;line-height:1.65;
+  text-align:left;white-space:normal;width:max-content;max-width:340px;
+  box-shadow:0 8px 24px rgba(0,0,0,.45);
+  opacity:0;visibility:hidden;transition:opacity .15s;pointer-events:none;z-index:60
+}
+.help.right::after{left:auto;right:0}
+.help:hover::after,.help:focus::after{opacity:1;visibility:visible}
 .warn-row{background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.25);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--yellow);display:flex;align-items:center;gap:8px}
 
 .btn{padding:10px 22px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:var(--text);cursor:pointer;font-size:14px;font-weight:500;transition:all .15s;display:inline-flex;align-items:center;gap:8px;text-decoration:none}
@@ -106,12 +126,12 @@ input.invalid, select.invalid{border-color:#ef4444 !important;background:rgba(23
 .progress-ring-text .pct{font-size:44px;font-weight:700;color:var(--accent2)}
 .progress-ring-text .label{font-size:12px;color:var(--muted);margin-top:4px}
 
-.progress-status{font-size:16px;margin-bottom:6px}
-.progress-sub{color:var(--muted);font-size:13px;margin-bottom:8px;min-height:20px;word-break:break-all}
+.progress-status{font-size:16px;line-height:24px;min-height:24px;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.progress-sub{color:var(--muted);font-size:13px;line-height:20px;height:40px;margin-bottom:8px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-all}
 .metrics{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:10px 0 16px}
-.metric{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:8px 14px;font-size:13px}
+.metric{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:8px 14px;font-size:13px;width:160px;box-sizing:border-box;text-align:center}
 .metric .k{color:var(--muted);font-size:11px;display:block}
-.metric .v{color:var(--accent2);font-weight:600;font-size:15px}
+.metric .v{color:var(--accent2);font-weight:600;font-size:14px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
 .metric .v.green{color:var(--green)}
 .metric .v.yellow{color:var(--yellow)}
 
@@ -226,13 +246,14 @@ input.invalid, select.invalid{border-color:#ef4444 !important;background:rgba(23
   <div class="container">
 
     <div class="profile-bar">
-      <label>📋 <span data-i18n="profile.label">配置预设</span></label>
+      <label>📋 <span data-i18n="profile.label">配置预设</span><span class="help" data-i18n-tip="help.profile" tabindex="0">?</span></label>
       <select id="profileSelect"><option value="">(未选择)</option></select>
       <button class="btn btn-sm" onclick="saveProfile()" data-i18n="profile.save">💾 保存为新预设</button>
       <button class="btn btn-sm" onclick="updateProfile()" data-i18n="profile.update">🔄 更新</button>
       <button class="btn btn-sm btn-danger" onclick="deleteProfile()" data-i18n="profile.delete">🗑️ 删除</button>
       <span class="spacer"></span>
-      <a class="btn btn-sm" href="/web.bat" data-i18n="profile.webBat" title="下载 web.bat 启动脚本">⚡ 生成 web.bat</a>
+      <a class="btn btn-sm" href="/web.bat" data-i18n="profile.webBat">⚡ 生成 web.bat</a>
+      <span class="help right" data-i18n-tip="help.webBat" tabindex="0">?</span>
     </div>
 
     <!-- ============ 配置页 ============ -->
@@ -241,7 +262,7 @@ input.invalid, select.invalid{border-color:#ef4444 !important;background:rgba(23
       <div class="warn-row" id="serverNotice" style="display:none"></div>
 
       <div class="card" data-reset="scope">
-        <h2><span class="icon">📍</span><span data-i18n="card.scope">扫描范围</span><button class="reset-btn" onclick="resetCard('scope')" title="恢复默认">↺</button></h2>
+        <h2><span class="icon">📍</span><span data-i18n="card.scope">扫描范围</span><span class="help" data-i18n-tip="help.scope" tabindex="0">?</span><button class="reset-btn" onclick="resetCard('scope')" title="恢复默认">↺</button></h2>
         <div class="row">
           <label data-i18n="scope.mode">扫描方式</label>
           <div class="radio-group" id="scopeGroup">
@@ -261,7 +282,7 @@ input.invalid, select.invalid{border-color:#ef4444 !important;background:rgba(23
       </div>
 
       <div class="card" data-reset="basic">
-        <h2><span class="icon">⚙️</span><span data-i18n="card.basic">扫描参数</span><button class="reset-btn" onclick="resetCard('basic')" title="恢复默认">↺</button></h2>
+        <h2><span class="icon">⚙️</span><span data-i18n="card.basic">扫描参数</span><span class="help" data-i18n-tip="help.basic" tabindex="0">?</span><button class="reset-btn" onclick="resetCard('basic')" title="恢复默认">↺</button></h2>
         <div class="row">
           <label data-i18n="basic.minSize">最小文件大小</label>
           <input type="number" id="minSize" value="100" min="0" step="10">
@@ -292,7 +313,7 @@ input.invalid, select.invalid{border-color:#ef4444 !important;background:rgba(23
       </div>
 
       <div class="card" data-reset="tiers">
-        <h2><span class="icon">🎚️</span><span data-i18n="card.tiers">候选分档</span><button class="reset-btn" onclick="resetCard('tiers')" title="恢复默认">↺</button></h2>
+        <h2><span class="icon">🎚️</span><span data-i18n="card.tiers">候选分档</span><span class="help" data-i18n-tip="help.tiers" tabindex="0">?</span><button class="reset-btn" onclick="resetCard('tiers')" title="恢复默认">↺</button></h2>
         <div class="row">
           <label data-i18n="tiers.label">启用候选档位</label>
           <div class="checkbox-row">
@@ -305,7 +326,7 @@ input.invalid, select.invalid{border-color:#ef4444 !important;background:rgba(23
       </div>
 
       <div class="card" data-reset="match">
-        <h2><span class="icon">🎯</span><span data-i18n="card.match">匹配阈值（高级）</span><button class="reset-btn" onclick="resetCard('match')" title="恢复默认">↺</button></h2>
+        <h2><span class="icon">🎯</span><span data-i18n="card.match">匹配阈值（高级）</span><span class="help" data-i18n-tip="help.match" tabindex="0">?</span><button class="reset-btn" onclick="resetCard('match')" title="恢复默认">↺</button></h2>
         <div class="row">
           <label data-i18n="match.durTol">强候选时长容差</label>
           <input type="number" id="durationTol" value="1.0" min="0" step="0.1">
@@ -326,7 +347,7 @@ input.invalid, select.invalid{border-color:#ef4444 !important;background:rgba(23
       </div>
 
       <div class="card" data-reset="output">
-        <h2><span class="icon">💾</span><span data-i18n="card.output">输出选项</span><button class="reset-btn" onclick="resetCard('output')" title="恢复默认">↺</button></h2>
+        <h2><span class="icon">💾</span><span data-i18n="card.output">输出选项</span><span class="help" data-i18n-tip="help.output" tabindex="0">?</span><button class="reset-btn" onclick="resetCard('output')" title="恢复默认">↺</button></h2>
         <div class="row">
           <label data-i18n="output.path">自定义输出路径</label>
           <input type="text" id="outputPath" data-i18n-ph="output.pathPh" placeholder="留空自动写入 dup_result_<任务ID>.json">
@@ -354,7 +375,7 @@ input.invalid, select.invalid{border-color:#ef4444 !important;background:rgba(23
       </div>
 
       <div class="card preview-card" id="previewCard">
-        <h2><span class="icon">🔎</span><span data-i18n="preview.title">采样预览</span></h2>
+        <h2><span class="icon">🔎</span><span data-i18n="preview.title">采样预览</span><span class="help" data-i18n-tip="help.preview" tabindex="0">?</span></h2>
         <div class="preview-info" id="previewInfo"></div>
         <div class="preview-actions" id="previewActions"></div>
       </div>
@@ -362,6 +383,7 @@ input.invalid, select.invalid{border-color:#ef4444 !important;background:rgba(23
       <div class="actions">
         <button class="btn" id="previewBtn" onclick="startPreview()" data-i18n="actions.preview">🔎 采样预览</button>
         <button class="btn btn-primary" id="startBtn" onclick="startScan()" data-i18n="actions.start">🚀 开始扫描</button>
+        <span class="help" data-i18n-tip="help.start" tabindex="0" style="align-self:center">?</span>
       </div>
       <div class="small-note" style="text-align:center;margin-top:8px" data-i18n="actions.shortcut">快捷键：Ctrl+Enter 开始扫描 · Esc 返回配置页</div>
 
@@ -483,7 +505,16 @@ const I18N = {
     "notice.allowRoots":"🔒 服务端已限制可扫描路径：{roots}",
     "msg.startFail":"启动失败","msg.reqFail":"请求失败","msg.disconnected":"连接断开，5秒后重试...",
     "msg.confirmCancel":"确定取消当前扫描？已解析的部分结果会保留。","msg.partial":"部分结果","msg.profileName":"输入预设名称：","msg.newProfile":"新预设",
-    "msg.selectProfile":"请先选择一个预设","msg.deleteProfile":"删除预设 \"{name}\"？"
+    "msg.selectProfile":"请先选择一个预设","msg.deleteProfile":"删除预设 \"{name}\"？",
+    "help.profile":"把当前表单的全部参数存成一套命名预设，方便在不同扫描场景（如「全盘快速扫」「单盘精细扫」）之间一键切换。预设保存在浏览器本地。",
+    "help.webBat":"下载一个 Windows 批处理脚本 web.bat。双击它等同于在命令行执行 python web.py —— 自动启动本 Web 服务并打开浏览器，以后无需手动敲命令。若你已用命令行启动了服务，则不需要它。",
+    "help.scope":"选择扫描范围：指定文件夹 = 扫描一到多个目录；盘符范围 = Windows 专用，扫描该区间内所有存在的盘符（如 G-U）。若服务端用 --allow-root 设了白名单，越界路径会被拒绝。",
+    "help.basic":"扫描参数：最小文件大小用于跳过更小的媒体文件；排除目录关键字会跳过「文件夹名包含该关键字」的目录；并发线程数留空则自动取 min(16, CPU×2)。",
+    "help.tiers":"候选分档决定查重的严格度：强候选 = 大小完全相同且时长差在容差内；中候选 = 文件名相似且分辨率/码率相同，或文件名相同但参数不同；弱候选 = 时长接近且分辨率相同。只勾强/中可显著加速。",
+    "help.match":"高级阈值：时长容差越大越容易判为同一视频；文件名相似度 0~1，越高越严格。无特殊需求建议保持默认。",
+    "help.output":"输出选项：JSON 固定输出，CSV/HTML 可选。Dry-run 只统计不写结果文件；增量缓存按 路径+大小+修改时间 跳过未变化的文件；阻止休眠可在长时间扫描时防止系统睡眠。",
+    "help.preview":"采样预览：先抽样扫描并估算总文件数与预计耗时，确认规模无误后再正式解析，避免误扫超大目录。",
+    "help.start":"开始扫描（快捷键 Ctrl+Enter）。Esc 可返回配置页。"
   },
   en: {
     "header.title":"Media Dedup · Scan Config","header.subtitle":"Pick a scope, tune parameters, start a background scan",
@@ -525,7 +556,16 @@ const I18N = {
     "notice.allowRoots":"🔒 Server restricts scan paths to: {roots}",
     "msg.startFail":"Start failed","msg.reqFail":"Request failed","msg.disconnected":"Connection lost, retrying in 5s...",
     "msg.confirmCancel":"Cancel the current scan? Partial results are kept.","msg.partial":"partial","msg.profileName":"Profile name:","msg.newProfile":"New profile",
-    "msg.selectProfile":"Select a profile first","msg.deleteProfile":"Delete profile \"{name}\"?"
+    "msg.selectProfile":"Select a profile first","msg.deleteProfile":"Delete profile \"{name}\"?",
+    "help.profile":"Save the current form values as a named profile, so you can switch between scan scenarios (full-drive quick scan / single-drive fine scan) in one click. Profiles are stored in your browser.",
+    "help.webBat":"Downloads a Windows batch script web.bat. Double-clicking it is the same as running python web.py on the command line: it starts this web service and opens the browser, so no manual command is needed later. Not needed if the service is already running.",
+    "help.scope":"Pick the scan scope: Folder = scan one or more directories; Drive range = Windows only, scans every existing drive in the range (e.g. G-U). If the server was started with --allow-root, paths outside the whitelist are rejected.",
+    "help.basic":"Scan parameters: minimum file size skips smaller media files; excluded-dir keywords skip folders whose name contains the keyword; workers left empty auto-picks min(16, CPU×2).",
+    "help.tiers":"Candidate tiers control how strict the matching is: strong = identical size and duration within tolerance; mid = similar name plus same resolution/bitrate, or same name with different parameters; weak = close duration and same resolution. Enabling only strong/mid is much faster.",
+    "help.match":"Advanced thresholds: a larger duration tolerance matches more videos; name similarity is 0~1, higher is stricter. Keep the defaults unless you know what you need.",
+    "help.output":"Output options: JSON is always written, CSV/HTML optional. Dry-run only counts and writes no result files; the incremental cache skips unchanged files by path+size+mtime; prevent-sleep keeps the machine awake during long scans.",
+    "help.preview":"Sample preview: estimates the total file count and expected runtime from a sample before the real parse, so an oversized folder is caught early.",
+    "help.start":"Start scanning (shortcut Ctrl+Enter). Press Esc to return to the config page."
   }
 };
 let LANG = localStorage.getItem('mdf_lang') || 'zh';
@@ -538,6 +578,7 @@ function tf(key, vars){
 function applyI18n(){
   document.querySelectorAll('[data-i18n]').forEach(el=>{ el.textContent = t(el.dataset.i18n); });
   document.querySelectorAll('[data-i18n-ph]').forEach(el=>{ el.placeholder = t(el.dataset.i18nPh); });
+  document.querySelectorAll('[data-i18n-tip]').forEach(el=>{ el.dataset.tip = t(el.dataset.i18nTip); });
   document.documentElement.lang = LANG === 'en' ? 'en' : 'zh-CN';
   document.getElementById('langLabel').textContent = LANG === 'zh' ? '中/EN' : 'EN/中';
   applyTheme(document.documentElement.dataset.themeMode || 'auto');
@@ -816,13 +857,25 @@ function renderStages(stages){
   }).join('');
 }
 
+/* 状态行拆两行：第一行“正在解析 X 第 n/m 个”，文件名放第二行 */
+function splitStatusMsg(s){
+  const msg = s.message || '';
+  const f = s.current_file;
+  if (f) {
+    const i = msg.indexOf('：' + f);
+    if (i >= 0) return [msg.slice(0, i), msg.slice(i + 1)];
+  }
+  return [msg, ''];
+}
+
 function updateProgress(s){
   const pct = Math.round(s.progress_pct || 0);
   document.getElementById('ringFg').style.strokeDashoffset = CIRC * (1 - pct/100);
   document.getElementById('pctText').textContent = pct + '%';
   document.getElementById('phaseLabel').textContent = t(PHASE_LABEL[s.phase] || s.phase);
-  document.getElementById('statusMsg').textContent = s.message || '';
-  document.getElementById('subMsg').textContent = (s.current_file ? (s.current_root||'') + ' · ' + s.current_file : '');
+  const [stMain, stFile] = splitStatusMsg(s);
+  document.getElementById('statusMsg').textContent = stMain;
+  document.getElementById('subMsg').textContent = stFile;
   document.getElementById('mProgress').textContent = (s.current||0).toLocaleString() + ' / ' + (s.total||0).toLocaleString();
   document.getElementById('mRate').textContent = s.rate ? (Math.round(s.rate).toLocaleString() + ' /s') : '-';
   document.getElementById('mEta').textContent = fmtDur(s.eta_seconds);

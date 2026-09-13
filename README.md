@@ -369,9 +369,16 @@ python web.py --port 8080 --allow-root D:\ --allow-root E:\ --auth admin:secret
 | `--no-lock` | `false` | 不创建单实例锁 `.web.lock` |
 | `--debug` | `false` | Flask 调试模式 |
 
-启动后访问 `http://localhost:5000`。页面右上角可下载 `web.bat`，双击即自动打开浏览器并启动服务（Windows）。
+启动后访问 `http://localhost:5000`。页面右上角可下载 `web.bat`，双击即自动启动服务并延迟 2 秒打开浏览器（Windows）；也可直接双击仓库里的 `一键启动Web.bat`，它会顺带检查依赖、MediaInfo 与 FFmpeg。
 
-> 运行时会在脚本目录生成：`scan_YYYYMMDD.log`（日志）、`.mdf_cache.json`（元数据缓存）、`.web.lock`（单实例锁）、`scan_history.json`（任务历史）、`_thumbs/`（缩略图缓存）。
+> 运行期文件按用途分目录存放（首次启动自动创建，旧版散落在根目录的文件会自动迁移；扫描结果仍写入项目根目录）：
+>
+> | 目录 | 内容 |
+> |------|------|
+> | `logs/` | 扫描日志 `scan_YYYYMMDD.log` |
+> | `history/` | 任务历史 `scan_history.json` |
+> | `config/` | 元数据缓存 `.mdf_cache.json`、单实例锁 `.web.lock` |
+> | `_thumbs/` | 结果页缩略图缓存 |
 
 ### 配置页功能
 
@@ -382,13 +389,15 @@ python web.py --port 8080 --allow-root D:\ --allow-root E:\ --auth admin:secret
 - **中英双语**：页面右上角一键切换
 - **快捷键**：`Ctrl+Enter` 启动扫描，`Esc` 从进度页返回配置页
 - **采样预览**：勾选后先枚举候选并估算耗时，确认后再实际扫描
+- **帮助提示（?）**：配置预设、扫描范围、基础参数、候选分档、高级阈值、输出选项等 9 处带 `?` 圆圈，悬停或键盘聚焦即显示说明，文案随中英语言切换
 - **服务端配置提示**：启动时读取 `/api/config`，展示白名单、是否开启认证、FFmpeg 是否可用
 
 ### 进度与状态
 
 - **四段独立进度条**：`enumerate（枚举）→ parse（解析）→ grouping（分组）→ saving（保存）`
 - **实时速率与 ETA**：EMA 平滑的"文件/秒"与"预计剩余时间"
-- **当前盘符 / 文件**：parse 阶段显示"正在解析 G:\Videos 第 12345/50000 个：xxx.mkv"
+- **指标卡固定宽度**：进度 / 实时速率 / 预计剩余 / 已用时 四卡等宽，数字用等宽字形（`tabular-nums`），数值变化时布局不抖动
+- **当前盘符 / 文件**：parse 阶段第一行显示"正在解析 I:\ 第 942/20912 个"，文件名单独占第二行并预留固定高度，长短文件名都不会引发换行抖动
 - **暂停 / 继续 / 取消**：通过 `ScanControl`（`threading.Event`）优雅停线程；取消后仍展示已解析的部分结果
 - **任务历史侧边栏**：列出历史任务及状态，点击直接打开旧结果，支持删除
 - **自动跳转**：扫描完成后自动进入结果页

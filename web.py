@@ -6,6 +6,12 @@ web.py — 媒体查重 Web 后端
 启动:  python web.py [--port 5000] [--allow-root D:\\] [--auth user:pass]
 浏览器打开: http://localhost:5000
 
+运行期文件（首次启动自动创建，旧版散落在根目录的文件会自动迁移）:
+  logs/    扫描日志 scan_YYYYMMDD.log（S3）
+  history/ 任务历史 scan_history.json（P6）
+  config/  元数据缓存 .mdf_cache.json（B5）、单实例锁 .web.lock（S2）
+  扫描结果 dup_result_<任务ID>.json/.csv/.html 仍写入项目根目录
+
 API:
   POST   /api/start                启动扫描任务
   POST   /api/pause                暂停当前任务
@@ -49,14 +55,40 @@ from flask_cors import CORS
 
 import mediadupfinder as mdf
 
-RESULT_DIR = Path(__file__).parent
+BASE_DIR = Path(__file__).parent
+RESULT_DIR = BASE_DIR                                    # 静态资源与扫描结果
+LOG_DIR = BASE_DIR / "logs"                              # 扫描日志
+HISTORY_DIR = BASE_DIR / "history"                       # 任务历史
+CONFIG_DIR = BASE_DIR / "config"                         # 运行配置 / 元数据缓存 / 单实例锁
+THUMB_DIR = BASE_DIR / "_thumbs"                         # 缩略图缓存
+
 RESULT_FILE = RESULT_DIR / "dup_result_web.json"        # 兼容旧版固定文件名
-HISTORY_FILE = RESULT_DIR / "scan_history.json"
-LOCK_FILE = RESULT_DIR / ".web.lock"
-CACHE_FILE = RESULT_DIR / ".mdf_cache.json"
-THUMB_DIR = RESULT_DIR / "_thumbs"
-LOG_FILE = RESULT_DIR / f"scan_{datetime.now():%Y%m%d}.log"
+HISTORY_FILE = HISTORY_DIR / "scan_history.json"
+LOCK_FILE = CONFIG_DIR / ".web.lock"
+CACHE_FILE = CONFIG_DIR / ".mdf_cache.json"
+LOG_FILE = LOG_DIR / f"scan_{datetime.now():%Y%m%d}.log"
 HISTORY_LIMIT = 50
+
+
+def _ensure_dirs():
+    """创建运行时目录，并把旧版散落在根目录的文件迁移进去。"""
+    for d in (LOG_DIR, HISTORY_DIR, CONFIG_DIR):
+        d.mkdir(parents=True, exist_ok=True)
+    legacy = [
+        (BASE_DIR / "scan_history.json", HISTORY_FILE),
+        (BASE_DIR / ".web.lock", LOCK_FILE),
+        (BASE_DIR / ".mdf_cache.json", CACHE_FILE),
+    ]
+    legacy += [(p, LOG_DIR / p.name) for p in BASE_DIR.glob("scan_*.log")]
+    for old, new in legacy:
+        if old.exists() and not new.exists():
+            try:
+                old.replace(new)
+            except OSError:
+                pass
+
+
+_ensure_dirs()
 
 STAGE_KEYS = ["enumerate", "parse", "grouping", "saving"]
 
@@ -661,7 +693,7 @@ def web_bat():
             "chcp 65001 >nul\r\n"
             "cd /d \"%~dp0\"\r\n"
             "echo 正在启动媒体查重 Web 服务...\r\n"
-            "start \"\" http://localhost:5000\r\n"
+            "start \"\" /min cmd /c \"ping -n 3 127.0.0.1 >nul & start http://localhost:5000\"\r\n"
             "python web.py\r\n"
             "pause\r\n")
     return Response(body, mimetype="text/plain; charset=utf-8",
@@ -1051,7 +1083,7 @@ def main():
         print(f" 路径白名单: {', '.join(ALLOW_ROOTS)}")
     if AUTH:
         print(f" HTTP 认证: 已启用（用户 {AUTH[0]}）")
-    print(f" 日志文件: {LOG_FILE.name}")
+    print(f" 日志文件: {LOG_FILE.relative_to(BASE_DIR)}")
     print(" 按 Ctrl+C 停止服务")
     print("=" * 60)
     logger.info("Web 服务启动，端口 %s", args.port)
