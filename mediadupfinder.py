@@ -16,7 +16,7 @@ mediadupfinder.py — 媒体文件查重工具（按元数据分组）
   python mediadupfinder.py --drives G-U --min-size-mb 100 --exclude-dir CHN
 """
 
-__version__ = "0.3.1"
+__version__ = "0.3.2"
 
 import argparse
 import json
@@ -493,13 +493,12 @@ def find_weak_candidates(files, tol_sec: float = 2.0,
 
 # ---------- 建议保留 ----------
 def suggest_keep(group_files):
-    """建议保留：分辨率 > 总码率 > 大小 > 时长。"""
+    """建议保留：分辨率 > 总码率 > 文件大小（大的优先）。"""
     def score(f):
         return (
             f["width"] * f["height"],
             f["video_bitrate"] + f["audio_bitrate"],
             f["size"],
-            f["duration"],
         )
     return max(group_files, key=score)["path"]
 
@@ -762,7 +761,8 @@ def main():
     src_group = parser.add_mutually_exclusive_group(required=True)
     src_group.add_argument("folder", nargs="?", help="要扫描的文件夹")
     src_group.add_argument("--drives", default=None, help="盘符范围，如 G-U，表示扫描 G: 到 U: 的所有硬盘")
-    parser.add_argument("-o", "--output", default="dup_result.json", help="输出 JSON 路径")
+    parser.add_argument("-o", "--output", default=None,
+                        help="输出 JSON 路径（默认 dup_result_<时间戳>.json，避免覆盖）")
     parser.add_argument("--csv", default=None, help="CSV 输出路径（默认与 -o 同名，扩展名 .csv）")
     parser.add_argument("--html", default=None, help="HTML 输出路径（默认与 -o 同名，扩展名 .html）")
     parser.add_argument("--no-csv", action="store_true", help="跳过 CSV 输出")
@@ -779,6 +779,10 @@ def main():
     parser.add_argument("--workers", type=int, default=None,
                         help="线程池并发数（默认 min(16, cpu*2)）")
     args = parser.parse_args()
+
+    if args.output is None:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        args.output = f"dup_result_{ts}.json"
 
     roots = []
     if args.drives is not None:
