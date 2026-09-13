@@ -189,8 +189,9 @@ select{background:var(--card);border:1px solid var(--border);border-radius:8px;p
     <button class="btn btn-sm" onclick="exportList('txt')">导出 TXT</button>
     <button class="btn btn-sm" onclick="exportList('csv')">导出 CSV</button>
     <button class="btn btn-sm btn-primary" onclick="exportList('json')">导出 JSON</button>
-    <button class="btn btn-sm" onclick="exportOpenScript('bat')">🪟 导出 Open .bat</button>
-    <button class="btn btn-sm" onclick="exportOpenScript('sh')">🍎 导出 Open .sh</button>
+    <button class="btn btn-sm" onclick="exportOpenScript('py')">🐍 生成 Open .py</button>
+    <button class="btn btn-sm" onclick="exportOpenScript('bat')">🪟 .bat</button>
+    <button class="btn btn-sm" onclick="exportOpenScript('sh')">🍎 .sh</button>
   </div>
 </div>
 
@@ -341,6 +342,7 @@ function handleParsed(data, file, workerType){
   hideProgress();
   document.getElementById('dropZone').style.display = 'none';
   recalcSuggested();
+  groups.forEach(g=>EXPANDED.add(g.group_id));
   initUI();
   renderAll();
 }
@@ -498,17 +500,19 @@ function groupHTML(g){
         ${isMarked?'<span class="marked-badge">删除</span>':''}
       </td>
       <td style="min-width:0">
-        <div class="file-name clickable" data-action="copy-path" data-path="${encodeURIComponent(f.path)}" title="点击复制完整路径">📄 ${f.name}</div>
-        <div class="file-path clickable" data-action="copy-path" data-path="${encodeURIComponent(f.path)}" title="点击复制路径">📋 ${f.path}</div>
+        <div class="file-name clickable" data-action="copy-file" data-path="${encodeURIComponent(f.path)}" title="点击复制完整文件路径">📄 ${f.name}</div>
+        <div class="file-path clickable" data-action="copy-folder" data-path="${encodeURIComponent(f.path)}" title="点击复制所在文件夹路径">📁 ${f.path}</div>
       </td>
       <td><div class="meta"><span>📦 ${fmtSize(f.size)}</span></div></td>
       <td><div class="meta"><span>⏱ ${fmtDuration(f.duration)}</span></div></td>
       <td><div class="meta"><span>🖥 ${f.resolution}</span></div></td>
       <td><div class="meta"><span>🎬 ${(f.video_bitrate/1000).toFixed(0)}k</span><span>🔊 ${(f.audio_bitrate/1000).toFixed(0)}k</span></div></td>
       <td style="text-align:right;white-space:nowrap">
-        ${isKeep
-          ? `<button class="btn btn-check btn-sm" disabled>✓ 推荐保留</button>`
-          : `<button class="btn btn-sm ${isMarked?'btn-danger':''}" data-action="toggle" data-path="${encodeURIComponent(f.path)}">${isMarked?'✓ 已标记':'标记删除'}</button>`
+        ${isMarked
+          ? `<button class="btn btn-sm btn-danger" data-action="toggle" data-path="${encodeURIComponent(f.path)}">✓ 已标记</button>`
+          : isKeep
+            ? `<button class="btn btn-check btn-sm" data-action="toggle" data-path="${encodeURIComponent(f.path)}" title="点击标记删除">✓ 推荐保留</button>`
+            : `<button class="btn btn-sm" data-action="toggle" data-path="${encodeURIComponent(f.path)}">标记删除</button>`
         }
       </td>
     </tr>`;
@@ -552,21 +556,40 @@ document.getElementById('groups').addEventListener('click', e=>{
     if(el.classList.contains('open')) EXPANDED.add(gid); else EXPANDED.delete(gid);
   }else if(action==='toggle'){
     const p = decodeURIComponent(btn.dataset.path);
-    if(marked.has(p)) marked.delete(p); else marked.add(p);
+    const willDelete = !marked.has(p);
+    if(willDelete) marked.add(p); else marked.delete(p);
+    const grp = groups.find(g=>g.files.some(f=>f.path===p));
+    if(grp && willDelete && p===grp.suggested_keep){
+      const remain = grp.files.filter(f=>!marked.has(f.path));
+      if(remain.length>0){
+        const scoreFn = KEEP_STRATEGIES[document.getElementById('keepStrategy').value] || KEEP_STRATEGIES.res_br_size;
+        let best=remain[0], bk=scoreFn(best);
+        for(let i=1;i<remain.length;i++){
+          const k=scoreFn(remain[i]);
+          if(k[0]>bk[0]||(k[0]===bk[0]&&k[1]>bk[1])||(k[0]===bk[0]&&k[1]===bk[1]&&k[2]>bk[2])){best=remain[i];bk=k;}
+        }
+        grp.suggested_keep = best.path;
+      }else{
+        grp.suggested_keep = '';
+      }
+    }
     renderGroups();
   }else if(action==='mark-all'){
     const gid = btn.dataset.gid;
     const g = groups.find(x=>x.group_id===gid);
     if(g) g.files.forEach(f=>{ if(f.path !== g.suggested_keep) marked.add(f.path); });
     renderGroups();
-  }else if(action==='copy-path'){
+  }else if(action==='copy-file' || action==='copy-folder'){
     const p = decodeURIComponent(btn.dataset.path);
-    navigator.clipboard.writeText(p).then(()=>{
-      showToast('已复制路径');
+    const target = action==='copy-folder'
+      ? p.replace(/[\\\/][^\\\/]+$/, '')
+      : p;
+    navigator.clipboard.writeText(target).then(()=>{
+      showToast(action==='copy-folder' ? '已复制文件夹路径' : '已复制文件路径');
     }).catch(()=>{
-      const ta = document.createElement('textarea'); ta.value=p; document.body.appendChild(ta); ta.select();
+      const ta = document.createElement('textarea'); ta.value=target; document.body.appendChild(ta); ta.select();
       document.execCommand('copy'); document.body.removeChild(ta);
-      showToast('已复制路径');
+      showToast(action==='copy-folder' ? '已复制文件夹路径' : '已复制文件路径');
     });
   }
 });
@@ -601,8 +624,14 @@ function updateActionBar(){
 }
 
 function getMarkedFiles(){
-  const r=[];
-  groups.forEach(g=>{ g.files.forEach(f=>{ if(marked.has(f.path)) r.push({group_id:g.group_id,...f}); }); });
+  const seen = new Set();
+  const r = [];
+  groups.forEach(g=>{ g.files.forEach(f=>{
+    if(marked.has(f.path) && !seen.has(f.path)){
+      seen.add(f.path);
+      r.push({group_id:g.group_id,...f});
+    }
+  }); });
   return r;
 }
 
@@ -611,16 +640,51 @@ function exportOpenScript(os){
   if(list.length===0){ alert('还没有标记任何文件'); return; }
   let content='', ext='', mime='';
   const paths = list.map(f=>f.path);
+  const stamp = new Date().toLocaleString('sv-SE', {hour12:false}).replace(/[: ]/g,'-');
 
-  if(os==='bat'){
+  if(os==='py'){
+    ext='py'; mime='text/plain;charset=utf-8';
+    const header = `# -*- coding: utf-8 -*-
+"""双击运行，在资源管理器中定位以下 ${list.length} 个文件。
+已标记删除：共 ${list.length} 个，可释放空间 ${(list.reduce((s,f)=>s+f.size,0)/1024/1024/1024).toFixed(2)} GB
+"""
+import os, sys, subprocess
+
+def open_in_explorer(path):
+    path = os.path.abspath(path)
+    if not os.path.exists(path):
+        print(f"  [不存在] {path}")
+        return
+    try:
+        if sys.platform == 'win32':
+            subprocess.Popen(['explorer', '/select,', path])
+        elif sys.platform == 'darwin':
+            subprocess.Popen(['open', '-R', path])
+        else:
+            subprocess.Popen(['xdg-open', os.path.dirname(path)])
+    except Exception as e:
+        print(f"  [失败] {path}: {e}")
+
+files = ${JSON.stringify(paths, null, 2)}
+
+print(f"共 {len(files)} 个文件，逐个定位中...\\n")
+for i, p in enumerate(files, 1):
+    print(f"  [{i}/{len(files)}] {p}")
+    open_in_explorer(p)
+
+print(f"\\n完成。如需删除这些文件，请手动确认后操作。")
+input("按回车退出...")
+`;
+    content = header;
+  }else if(os==='bat'){
     ext='bat'; mime='text/plain;charset=utf-8';
-    const lines = ['@echo off', 'REM ===============================================',
-      'REM 打开并定位以下文件（双击运行即可）',
+    const lines = ['@echo off', 'chcp 65001 >nul', 'REM ===============================================',
+      'REM 逐个打开资源管理器并定位文件',
       'REM ===============================================', '',
       ...paths.map(p=>{
-        const pp = p.replace(/\//g,'\\').replace(/"/g,'\\"');
+        const pp = p.replace(/\//g,'\\');
         return `echo 正在定位: ${pp}\nexplorer /select,"${pp}"`;
-      }), '', 'echo.', 'echo 全部定位完成', 'pause'];
+      }), '', 'echo.', 'echo 全部完成', 'pause'];
     content = lines.join('\r\n');
   }else{
     ext='sh'; mime='text/plain;charset=utf-8';
@@ -638,10 +702,10 @@ function exportOpenScript(os){
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `open_marked_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.${ext}`;
+  a.download = `open_marked_${stamp}.${ext}`;
   a.click();
   URL.revokeObjectURL(url);
-  showToast(`已导出 .${ext} 脚本（${list.length} 个文件）`);
+  showToast(`已生成 .${ext}（${list.length} 个文件）${os==='py'?' · 双击或 python 运行即可':''}`);
 }
 
 function exportList(format){
@@ -663,7 +727,7 @@ function exportList(format){
   const blob = new Blob([content],{type:mime});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `delete_list_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.${ext}`;
+  a.download = `delete_list_${new Date().toLocaleString('sv-SE', {hour12:false}).replace(/[: ]/g,'-')}.${ext}`;
   a.click();
   URL.revokeObjectURL(a.href);
 }

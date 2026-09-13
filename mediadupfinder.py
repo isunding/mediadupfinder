@@ -16,7 +16,7 @@ mediadupfinder.py — 媒体文件查重工具（按元数据分组）
   python mediadupfinder.py --drives G-U --min-size-mb 100 --exclude-dir CHN
 """
 
-__version__ = "0.3.2"
+__version__ = "0.3.4"
 
 import argparse
 import json
@@ -122,6 +122,20 @@ def extract_metadata(path):
     height = _to_int(video.get("height"), 0) if video else 0
     v_bitrate = _to_int(video.get("bit_rate"), 0) if video else 0
     a_bitrate = _to_int(audio.get("bit_rate"), 0) if audio else 0
+
+    if not v_bitrate and not a_bitrate:
+        general_br = _to_int(general.get("overall_bit_rate") or general.get("bit_rate"), 0)
+        if general_br:
+            v_bitrate = general_br
+        elif duration_ms > 0 and size > 0:
+            est_total = int(size * 8 / (duration_ms / 1000.0))
+            if video and audio:
+                v_bitrate = int(est_total * 0.85)
+                a_bitrate = est_total - v_bitrate
+            elif video:
+                v_bitrate = est_total
+            elif audio:
+                a_bitrate = est_total
 
     if width and height:
         resolution = f"{width}x{height}"
