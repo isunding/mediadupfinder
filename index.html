@@ -215,10 +215,27 @@ function pickFile(file){
 
   setProgress(2, '启动 '+workerTag+'...');
 
-  const worker = new Worker(workerFile);
-  let done = false;
+  let worker;
+  try {
+    worker = new Worker(workerFile);
+  } catch(err) {
+    setProgress(0, 'Worker 创建失败，回退主线程...');
+    setTimeout(()=>fallbackMainThread(file), 300);
+    return;
+  }
 
-  const timeout = setTimeout(()=>{
+  let done = false;
+  let gotFirstMsg = false;
+
+  const startupTimeout = setTimeout(()=>{
+    if(!gotFirstMsg && !done){
+      worker.terminate();
+      setProgress(0, 'Worker 无响应（可能 file:// 协议限制），回退主线程解析...');
+      setTimeout(()=>fallbackMainThread(file), 500);
+    }
+  }, 5000);
+
+  const hardTimeout = setTimeout(()=>{
     if(!done){
       worker.terminate();
       setProgress(0, 'Worker 超时，回退主线程解析...');
@@ -227,24 +244,24 @@ function pickFile(file){
   }, 120000);
 
   worker.onmessage = (e)=>{
+    if(!gotFirstMsg){ gotFirstMsg = true; clearTimeout(startupTimeout); }
     const msg = e.data;
     if(msg.type === 'progress'){
       setProgress(msg.percent, msg.text);
     } else if(msg.type === 'result'){
-      done = true; clearTimeout(timeout); worker.terminate();
+      done = true; clearTimeout(hardTimeout); worker.terminate();
       handleParsed(msg.data, file, workerType);
     } else if(msg.type === 'error'){
-      done = true; clearTimeout(timeout); worker.terminate();
+      done = true; clearTimeout(hardTimeout); worker.terminate();
       hideProgress();
       alert('Worker 解析失败：'+msg.message);
       resetUI();
     }
   };
   worker.onerror = (e)=>{
-    done = true; clearTimeout(timeout); worker.terminate();
-    hideProgress();
-    alert('Worker 错误：'+e.message);
-    resetUI();
+    done = true; clearTimeout(startupTimeout); clearTimeout(hardTimeout); worker.terminate();
+    setProgress(0, 'Worker 错误，回退主线程解析...');
+    setTimeout(()=>fallbackMainThread(file), 500);
   };
 
   worker.postMessage({ file, size: file.size });
