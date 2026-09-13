@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# scan output
+dup_result*.json
+*_result*.csv
+*_report*.html
+
+# OS
+.DS_Store
+Thumbs.db
