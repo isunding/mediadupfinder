@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>重复文件清理助手</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0f1420;--card:#1a2133;--card2:#232b42;--border:#2d3650;
+  --text:#e4e7ef;--muted:#8b93a7;--accent:#6366f1;--accent2:#818cf8;
+  --green:#22c55e;--red:#ef4444;--yellow:#eab308;--orange:#f97316;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.header{background:linear-gradient(135deg,#1a1f35,#0f1420);border-bottom:1px solid var(--border);padding:18px 32px;position:sticky;top:0;z-index:100;backdrop-filter:blur(10px)}
+.header h1{font-size:19px;font-weight:600;letter-spacing:.5px;display:flex;align-items:center;gap:10px}
+.header .subtitle{color:var(--muted);font-size:13px;margin-top:3px}
+.container{max-width:1400px;margin:0 auto;padding:22px}
+
+.file-drop{border:2px dashed var(--border);border-radius:14px;padding:30px;margin-bottom:22px;background:var(--card);text-align:center;transition:all .2s;cursor:pointer}
+.file-drop:hover,.file-drop.drag{border-color:var(--accent);background:var(--card2)}
+.file-drop .icon{font-size:38px;margin-bottom:10px;opacity:.8}
+.file-drop .main{font-size:15px;font-weight:500}
+.file-drop .sub{color:var(--muted);font-size:12px;margin-top:5px}
+.file-drop input{display:none}
+
+.progress-wrap{max-width:600px;margin:14px auto 0;text-align:left}
+.progress-bar{width:100%;height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+.progress-bar .fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));width:0%;transition:width .1s}
+.progress-text{font-size:12px;color:var(--muted);margin-top:6px;display:flex;justify-content:space-between}
+.worker-tag{display:inline-block;font-size:10px;padding:2px 7px;border-radius:4px;margin-left:8px;background:rgba(99,102,241,.15);color:var(--accent2);border:1px solid rgba(99,102,241,.3)}
+.worker-tag.stream{background:rgba(234,179,8,.12);color:var(--yellow);border-color:rgba(234,179,8,.35)}
+
+.warn-banner{background:rgba(234,179,8,.1);border:1px solid rgba(234,179,8,.3);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:var(--yellow);display:none;align-items:center;gap:10px}
+.warn-banner.show{display:flex}
+.warn-banner .btn{margin-left:auto;padding:5px 10px;font-size:12px}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:18px}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;transition:transform .2s}
+.stat-card:hover{transform:translateY(-2px)}
+.stat-card .label{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.stat-card .value{font-size:24px;font-weight:700}
+.stat-card .sub{color:var(--muted);font-size:12px;margin-top:3px}
+.stat-card.accent .value{color:var(--accent2)}
+.stat-card.green .value{color:var(--green)}
+.stat-card.yellow .value{color:var(--yellow)}
+.stat-card.red .value{color:var(--red)}
+
+.toolbar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.search{flex:1;min-width:220px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:9px 14px;color:var(--text);font-size:14px;outline:none}
+.search:focus{border-color:var(--accent)}
+select{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px;outline:none;cursor:pointer}
+.btn{padding:8px 15px;border-radius:8px;border:1px solid var(--border);background:var(--card2);color:var(--text);cursor:pointer;font-size:13px;font-weight:500;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--accent);background:var(--card)}
+.btn-primary{background:var(--accent);border-color:var(--accent)}
+.btn-primary:hover{background:var(--accent2);border-color:var(--accent2)}
+.btn-danger{background:rgba(239,68,68,.15);border-color:rgba(239,68,68,.4);color:var(--red)}
+.btn-danger:hover{background:rgba(239,68,68,.25)}
+.btn-sm{padding:5px 10px;font-size:12px;border-radius:6px}
+.btn-check{background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.35);color:var(--green)}
+.btn-ghost{background:transparent}
+
+.load-more{text-align:center;padding:14px;margin:14px 0}
+
+.group{background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:12px;overflow:hidden}
+.group-header{padding:12px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;gap:14px;flex-wrap:wrap}
+.group-header:hover{background:var(--card2)}
+.group-title{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
+.group-id{font-family:Consolas,monospace;color:var(--accent2);font-size:13px;font-weight:600}
+.group-info{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:12px;flex-wrap:wrap}
+.chip{background:var(--card2);border:1px solid var(--border);padding:3px 10px;border-radius:20px;font-size:11px}
+.chip.warn{background:rgba(234,179,8,.12);border-color:rgba(234,179,8,.3);color:var(--yellow)}
+.chip.safe{background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.3);color:var(--green)}
+.group-body{padding:0 16px 16px;display:none}
+.group.open .group-body{display:block}
+.group.open .group-header{border-bottom:1px solid var(--border)}
+.keep-suggest{background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.25);border-radius:8px;padding:10px 12px;margin:12px 0;font-size:13px;line-height:1.6}
+.keep-suggest .label{color:var(--accent2);font-weight:600;margin-right:6px}
+.keep-suggest .path{color:var(--muted);word-break:break-all}
+
+.file-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+.file-table th{text-align:left;padding:8px 10px;color:var(--muted);font-weight:500;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+.file-table td{padding:9px;border-bottom:1px solid rgba(45,54,80,.5);vertical-align:top}
+.file-table tr:last-child td{border-bottom:none}
+.file-table tr.keep-row{background:rgba(34,197,94,.05)}
+.file-table tr.marked-del td{background:rgba(239,68,68,.08)}
+.file-name{font-weight:600;word-break:break-all}
+.file-path{color:var(--muted);font-size:11px;margin-top:3px;word-break:break-all;font-family:Consolas,monospace}
+.meta{display:flex;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:12px}
+.meta span{white-space:nowrap}
+.keep-badge{display:inline-block;background:rgba(34,197,94,.15);color:var(--green);font-size:11px;padding:2px 7px;border-radius:4px;margin-left:4px;font-weight:600}
+.marked-badge{display:inline-block;background:rgba(239,68,68,.2);color:var(--red);font-size:11px;padding:2px 7px;border-radius:4px;margin-left:4px;font-weight:600}
+
+.action-bar{position:sticky;bottom:0;background:linear-gradient(to top,var(--bg),rgba(15,20,32,.95));border-top:1px solid var(--border);padding:12px 22px;backdrop-filter:blur(10px);display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;z-index:100}
+.action-bar .info{color:var(--muted);font-size:13px}
+.action-bar .info b{color:var(--red);font-size:17px}
+.action-bar .info b.green{color:var(--green)}
+
+.empty{text-align:center;padding:60px 20px;color:var(--muted)}
+.empty .icon{font-size:48px;margin-bottom:16px;opacity:.5}
+.toggle-arrow{transition:transform .2s;font-size:12px;color:var(--muted);display:inline-block;width:12px}
+.group.open .toggle-arrow{transform:rotate(90deg)}
+.group-actions{display:flex;gap:8px}
+
+@media(max-width:768px){
+  .header{padding:14px}
+  .container{padding:14px}
+  .stat-card .value{font-size:20px}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🗂️ 重复文件清理助手 <span id="fileName" style="font-size:12px;color:var(--muted);font-weight:400"></span></h1>
+  <div class="subtitle">拖拽 JSON → Worker 异步解析 → 分批渲染 · 支持超大文件</div>
+</div>
+
+<div class="container">
+
+  <div class="file-drop" id="dropZone">
+    <div class="icon">📄</div>
+    <div class="main">点击选择或拖拽 JSON 文件到这里</div>
+    <div class="sub">小文件走 Web Worker · 大文件走流式解析 Worker</div>
+    <input type="file" id="fileInput" accept=".json,application/json">
+    <div class="progress-wrap" id="progressWrap" style="display:none">
+      <div class="progress-bar"><div class="fill" id="progressFill"></div></div>
+      <div class="progress-text">
+        <span id="progressText">准备中...</span>
+        <span id="progressPct">0%</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="warn-banner" id="warnBanner">
+    <span id="warnText">⚠️ 已启用流式 Worker 解析</span>
+    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('warnBanner').classList.remove('show')">知道了</button>
+  </div>
+
+  <div class="stats" id="stats" style="display:none"></div>
+
+  <div class="toolbar" id="toolbar" style="display:none">
+    <input class="search" id="search" placeholder="🔍 搜索文件名或路径...">
+    <select id="filterReason"><option value="">全部原因</option></select>
+    <button class="btn btn-sm" onclick="expandAll()">全部展开</button>
+    <button class="btn btn-sm" onclick="collapseAll()">全部折叠</button>
+    <button class="btn btn-sm btn-danger" onclick="clearAllMarks()">清空标记</button>
+  </div>
+
+  <div id="groups"></div>
+  <div class="load-more" id="loadMore" style="display:none">
+    <button class="btn btn-primary" onclick="loadNextBatch()">加载更多（<span id="remainingCount"></span> 组未显示）</button>
+  </div>
+
+</div>
+
+<div class="action-bar" id="actionBar" style="display:none">
+  <div class="info">已标记 <b id="markedCount">0</b> 个文件 · 可释放 <b class="green" id="markedSize">0</b></div>
+  <div style="display:flex;gap:10px">
+    <button class="btn btn-sm" onclick="exportList('txt')">导出 TXT</button>
+    <button class="btn btn-sm" onclick="exportList('csv')">导出 CSV</button>
+    <button class="btn btn-sm btn-primary" onclick="exportList('json')">导出 JSON</button>
+  </div>
+</div>
+
+<script>
+const MB = 1024**2, GB = 1024**3, KB = 1024;
+const WORKER_JSON_THRESHOLD = 200 * MB;
+const BATCH_THRESHOLD_GROUPS = 200;
+
+let groups = [], filteredGroups = [], marked = new Set(), EXPANDED = new Set();
+let BATCH_SIZE = 50;
+
+function fmtSize(b){
+  if(b>=GB) return (b/GB).toFixed(2)+' GB';
+  if(b>=MB) return (b/MB).toFixed(2)+' MB';
+  if(b>=KB) return (b/KB).toFixed(2)+' KB';
+  return b+' B';
+}
+function fmtDuration(s){
+  s = Math.round(s);
+  const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), ss = s%60;
+  return h>0 ? `${h}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}` : `${m}:${String(ss).padStart(2,'0')}`;
+}
+
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+dropZone.addEventListener('click', ()=>fileInput.click());
+dropZone.addEventListener('dragover', e=>{e.preventDefault();dropZone.classList.add('drag')});
+dropZone.addEventListener('dragleave', ()=>dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop', e=>{
+  e.preventDefault();dropZone.classList.remove('drag');
+  if(e.dataTransfer.files[0]) pickFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e=>{ if(e.target.files[0]) pickFile(e.target.files[0]); });
+
+function setProgress(percent, text){
+  document.getElementById('progressFill').style.width = percent+'%';
+  document.getElementById('progressText').textContent = text || '';
+  document.getElementById('progressPct').textContent = percent+'%';
+}
+function showProgress(){ document.getElementById('progressWrap').style.display='block'; }
+function hideProgress(){ document.getElementById('progressWrap').style.display='none'; }
+
+function pickFile(file){
+  document.getElementById('fileName').textContent = '· '+file.name+' ('+fmtSize(file.size)+')';
+  showProgress();
+  setProgress(0, '初始化...');
+
+  const workerType = file.size >= WORKER_JSON_THRESHOLD ? 'stream' : 'json';
+  const workerFile = workerType === 'stream' ? 'worker-stream.js' : 'worker-json.js';
+  const workerTag = workerType === 'stream'
+    ? '<span class="worker-tag stream">⚡ 流式 Worker</span>'
+    : '<span class="worker-tag">🧵 JSON Worker</span>';
+
+  setProgress(2, '启动 '+workerTag+'...');
+
+  const worker = new Worker(workerFile);
+  let done = false;
+
+  const timeout = setTimeout(()=>{
+    if(!done){
+      worker.terminate();
+      setProgress(0, 'Worker 超时，回退主线程解析...');
+      setTimeout(()=>fallbackMainThread(file), 500);
+    }
+  }, 120000);
+
+  worker.onmessage = (e)=>{
+    const msg = e.data;
+    if(msg.type === 'progress'){
+      setProgress(msg.percent, msg.text);
+    } else if(msg.type === 'result'){
+      done = true; clearTimeout(timeout); worker.terminate();
+      handleParsed(msg.data, file, workerType);
+    } else if(msg.type === 'error'){
+      done = true; clearTimeout(timeout); worker.terminate();
+      hideProgress();
+      alert('Worker 解析失败：'+msg.message);
+      resetUI();
+    }
+  };
+  worker.onerror = (e)=>{
+    done = true; clearTimeout(timeout); worker.terminate();
+    hideProgress();
+    alert('Worker 错误：'+e.message);
+    resetUI();
+  };
+
+  worker.postMessage({ file, size: file.size });
+}
+
+async function fallbackMainThread(file){
+  try{
+    setProgress(10, '主线程读取中...');
+    const text = await file.text();
+    setProgress(50, '主线程 JSON.parse（可能短暂卡顿）...');
+    await new Promise(r=>setTimeout(r,10));
+    const data = JSON.parse(text);
+    setProgress(90, '处理中...');
+    await new Promise(r=>setTimeout(r,10));
+    handleParsed(data, file, 'main');
+  }catch(err){
+    hideProgress();
+    alert('解析失败：'+err.message);
+    resetUI();
+  }
+}
+
+function handleParsed(data, file, workerType){
+  groups = (data.strong_candidates || []).slice().sort((a,b)=>b.wasted_bytes - a.wasted_bytes);
+
+  if(groups.length > BATCH_THRESHOLD_GROUPS) BATCH_SIZE = 50;
+  else BATCH_SIZE = groups.length;
+
+  const banner = document.getElementById('warnBanner');
+  banner.classList.remove('show');
+  if(workerType === 'stream'){
+    document.getElementById('warnText').textContent =
+      `⚡ 使用流式 Worker 解析 ${fmtSize(file.size)}，共 ${groups.length.toLocaleString()} 组 · 分批渲染保持流畅`;
+    banner.classList.add('show');
+  } else if(file.size >= 50*MB){
+    document.getElementById('warnText').textContent =
+      `🧵 使用 Worker 解析 ${fmtSize(file.size)}，共 ${groups.length.toLocaleString()} 组`;
+    banner.classList.add('show');
+  }
+
+  hideProgress();
+  document.getElementById('dropZone').style.display = 'none';
+  initUI();
+  renderAll();
+}
+
+function resetUI(){
+  document.getElementById('fileName').textContent='';
+  document.getElementById('dropZone').style.display='block';
+  document.getElementById('stats').style.display='none';
+  document.getElementById('toolbar').style.display='none';
+  document.getElementById('groups').innerHTML='';
+  document.getElementById('loadMore').style.display='none';
+  document.getElementById('actionBar').style.display='none';
+  hideProgress();
+  groups=[]; filteredGroups=[]; marked.clear(); EXPANDED.clear();
+}
+
+function initUI(){
+  const sel = document.getElementById('filterReason');
+  sel.innerHTML = '<option value="">全部原因</option>';
+  [...new Set(groups.map(g=>g.reason))].forEach(r=>{
+    const o = document.createElement('option'); o.value=r; o.textContent=r; sel.appendChild(o);
+  });
+  sel.onchange = renderGroups;
+  document.getElementById('stats').style.display='grid';
+  document.getElementById('toolbar').style.display='flex';
+  document.getElementById('stats').innerHTML = buildStats();
+  document.getElementById('search').oninput = renderGroups;
+}
+
+function buildStats(){
+  const totalFiles = groups.reduce((s,g)=>s+g.files.length,0);
+  const totalWasted = groups.reduce((s,g)=>s+g.wasted_bytes,0);
+  const maxG = groups.reduce((m,g)=>!m||g.wasted_bytes>m.wasted_bytes?g:m,null);
+  const avg = groups.length ? totalWasted/groups.length : 0;
+  return `
+    <div class="stat-card accent"><div class="label">重复分组</div><div class="value">${groups.length.toLocaleString()}</div><div class="sub">共 ${totalFiles.toLocaleString()} 个文件</div></div>
+    <div class="stat-card red"><div class="label">可释放空间</div><div class="value">${fmtSize(totalWasted)}</div><div class="sub">理论最大节省</div></div>
+    <div class="stat-card yellow"><div class="label">平均浪费 / 组</div><div class="value">${fmtSize(avg)}</div></div>
+    <div class="stat-card green"><div class="label">最大浪费组</div><div class="value" style="font-size:15px">${maxG?maxG.group_id:'-'}</div><div class="sub">${maxG?fmtSize(maxG.wasted_bytes):''}</div></div>
+  `;
+}
+
+function renderAll(){
+  const kw = (document.getElementById('search').value||'').toLowerCase().trim();
+  const reasonFilter = document.getElementById('filterReason').value;
+  filteredGroups = groups.filter(g=>{
+    if(reasonFilter && g.reason !== reasonFilter) return false;
+    if(kw){
+      const hay = g.files.map(f=>f.name+' '+f.path).join(' ').toLowerCase();
+      if(!hay.includes(kw) && !g.group_id.toLowerCase().includes(kw)) return false;
+    }
+    return true;
+  });
+
+  const container = document.getElementById('groups');
+  if(filteredGroups.length===0){
+    container.innerHTML = `<div class="empty"><div class="icon">📭</div>没有匹配的结果</div>`;
+    document.getElementById('loadMore').style.display='none';
+    updateActionBar(); return;
+  }
+
+  const batchSize = filteredGroups.length > BATCH_THRESHOLD_GROUPS ? BATCH_SIZE : filteredGroups.length;
+  renderBatched(0, batchSize);
+}
+
+function renderBatched(startIdx, batchSize){
+  const container = document.getElementById('groups');
+  if(startIdx===0) container.innerHTML = '';
+  const endIdx = Math.min(startIdx + batchSize, filteredGroups.length);
+  const slice = filteredGroups.slice(startIdx, endIdx);
+
+  let html = '';
+  for(const g of slice) html += groupHTML(g);
+
+  const frag = document.createDocumentFragment();
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  while(div.firstChild) frag.appendChild(div.firstChild);
+  container.appendChild(frag);
+
+  if(endIdx < filteredGroups.length){
+    document.getElementById('loadMore').style.display='block';
+    document.getElementById('remainingCount').textContent = (filteredGroups.length - endIdx).toLocaleString();
+  }else{
+    document.getElementById('loadMore').style.display='none';
+  }
+  updateActionBar();
+}
+
+function loadNextBatch(){
+  const shown = document.querySelectorAll('.group').length;
+  renderBatched(shown, BATCH_SIZE);
+}
+
+function groupHTML(g){
+  const isOpen = EXPANDED.has(g.group_id);
+  const filesHTML = g.files.map(f=>{
+    const isKeep = f.path === g.suggested_keep;
+    const isMarked = marked.has(f.path);
+    return `<tr class="${isKeep?'keep-row':''} ${isMarked?'marked-del':''}">
+      <td style="width:40px;padding:8px;text-align:center">
+        ${isKeep?'<span class="keep-badge">保留</span>':''}
+        ${isMarked?'<span class="marked-badge">删除</span>':''}
+      </td>
+      <td style="min-width:0">
+        <div class="file-name">${f.name}</div>
+        <div class="file-path">${f.path}</div>
+      </td>
+      <td><div class="meta"><span>📦 ${fmtSize(f.size)}</span></div></td>
+      <td><div class="meta"><span>⏱ ${fmtDuration(f.duration)}</span></div></td>
+      <td><div class="meta"><span>🖥 ${f.resolution}</span></div></td>
+      <td><div class="meta"><span>🎬 ${(f.video_bitrate/1000).toFixed(0)}k</span><span>🔊 ${(f.audio_bitrate/1000).toFixed(0)}k</span></div></td>
+      <td style="text-align:right;white-space:nowrap">
+        ${isKeep
+          ? `<button class="btn btn-check btn-sm" disabled>✓ 推荐保留</button>`
+          : `<button class="btn btn-sm ${isMarked?'btn-danger':''}" data-action="toggle" data-path="${encodeURIComponent(f.path)}">${isMarked?'✓ 已标记':'标记删除'}</button>`
+        }
+      </td>
+    </tr>`;
+  }).join('');
+
+  return `<div class="group ${isOpen?'open':''}" data-gid="${g.group_id}">
+    <div class="group-header" data-action="toggle-group">
+      <div class="group-title">
+        <span class="toggle-arrow">▶</span>
+        <span class="group-id">${g.group_id}</span>
+        <div class="group-info">
+          <span class="chip warn">⚠ ${g.reason}</span>
+          <span class="chip">${g.file_count} 个文件</span>
+          <span class="chip safe">浪费 ${fmtSize(g.wasted_bytes)}</span>
+        </div>
+      </div>
+      <div class="group-actions">
+        <button class="btn btn-danger btn-sm" data-action="mark-all" data-gid="${g.group_id}">除保留外全选删除</button>
+      </div>
+    </div>
+    <div class="group-body">
+      <div class="keep-suggest"><span class="label">💡 建议保留：</span><span class="path">${g.suggested_keep}</span></div>
+      <table class="file-table">
+        <thead><tr><th></th><th>文件</th><th>大小</th><th>时长</th><th>分辨率</th><th>码率</th><th style="width:110px">操作</th></tr></thead>
+        <tbody>${filesHTML}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+document.getElementById('groups').addEventListener('click', e=>{
+  const btn = e.target.closest('[data-action]');
+  if(!btn) return;
+  const action = btn.dataset.action;
+  if(action==='toggle-group'){
+    const el = e.target.closest('.group');
+    const gid = el.dataset.gid;
+    el.classList.toggle('open');
+    if(el.classList.contains('open')) EXPANDED.add(gid); else EXPANDED.delete(gid);
+  }else if(action==='toggle'){
+    const p = decodeURIComponent(btn.dataset.path);
+    if(marked.has(p)) marked.delete(p); else marked.add(p);
+    renderGroups();
+  }else if(action==='mark-all'){
+    const gid = btn.dataset.gid;
+    const g = groups.find(x=>x.group_id===gid);
+    if(g) g.files.forEach(f=>{ if(f.path !== g.suggested_keep) marked.add(f.path); });
+    renderGroups();
+  }
+});
+
+function expandAll(){ document.querySelectorAll('.group').forEach(g=>{g.classList.add('open');EXPANDED.add(g.dataset.gid)}); }
+function collapseAll(){ document.querySelectorAll('.group').forEach(g=>{g.classList.remove('open');EXPANDED.delete(g.dataset.gid)}); }
+function clearAllMarks(){ marked.clear(); renderGroups(); }
+function renderGroups(){ renderAll(); }
+
+function updateActionBar(){
+  const bar = document.getElementById('actionBar');
+  if(marked.size===0){ bar.style.display='none'; return; }
+  bar.style.display='flex';
+  let bytes = 0;
+  groups.forEach(g=>{ g.files.forEach(f=>{ if(marked.has(f.path)) bytes += f.size; }); });
+  document.getElementById('markedCount').textContent = marked.size.toLocaleString();
+  document.getElementById('markedSize').textContent = fmtSize(bytes);
+}
+
+function getMarkedFiles(){
+  const r=[];
+  groups.forEach(g=>{ g.files.forEach(f=>{ if(marked.has(f.path)) r.push({group_id:g.group_id,...f}); }); });
+  return r;
+}
+
+function exportList(format){
+  const list = getMarkedFiles();
+  if(list.length===0){ alert('还没有标记任何文件'); return; }
+  let content='', mime='', ext='';
+  if(format==='txt'){
+    content = list.map((f,i)=>`#${i+1}  [${f.group_id}]  ${f.name}\n${f.path}\n# ${fmtSize(f.size)}  ${fmtDuration(f.duration)}  ${f.resolution}\n`).join('\n');
+    mime='text/plain'; ext='txt';
+  }else if(format==='csv'){
+    const header='group_id,name,path,size_bytes,size_mb,duration,resolution,video_bitrate,audio_bitrate,format';
+    const esc = v=>`"${String(v).replace(/"/g,'""')}"`;
+    content = header+'\n'+list.map(f=>[f.group_id,f.name,f.path,f.size,f.size_mb,f.duration,f.resolution,f.video_bitrate,f.audio_bitrate,f.format].map(esc).join(',')).join('\n');
+    mime='text/csv'; ext='csv';
+  }else{
+    content = JSON.stringify(list,null,2);
+    mime='application/json'; ext='json';
+  }
+  const blob = new Blob([content],{type:mime});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `delete_list_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.${ext}`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+</script>
+</body>
+</html>

@@ -6,9 +6,10 @@ venv/
 .env
 
 # scan output
-dup_result*.json
+dup_result.*
 *_result*.csv
 *_report*.html
+*dumpresult*
 
 # OS
 .DS_Store
