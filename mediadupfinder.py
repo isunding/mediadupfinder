@@ -16,6 +16,8 @@ mediadupfinder.py — 媒体文件查重工具（按元数据分组）
   python mediadupfinder.py --drives G-U --min-size-mb 100 --exclude-dir CHN
 """
 
+__version__ = "0.2.0"
+
 import argparse
 import json
 import os
@@ -759,6 +761,7 @@ tr.keep td { background: #e8f5e9; font-weight: bold; }
 # ---------- 主程序 ----------
 def main():
     parser = argparse.ArgumentParser(description="媒体文件查重工具（按元数据）")
+    parser.add_argument("-V", "--version", action="version", version=f"%(prog)s {__version__}")
     src_group = parser.add_mutually_exclusive_group(required=True)
     src_group.add_argument("folder", nargs="?", help="要扫描的文件夹")
     src_group.add_argument("--drives", default=None, help="盘符范围，如 G-U，表示扫描 G: 到 U: 的所有硬盘")
