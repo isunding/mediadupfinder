@@ -8,8 +8,8 @@
 - **全局去重**：三档之间共享已认领的文件对，不交叉重复报告
 - **传递闭包聚类**：同大小文件按时长做并查集合并，避免链式相近被拆开
 - **浪费空间估算**：按 `(文件数 - 1) × 中位大小` 估算每组可释放空间，全量按此降序
-- **多格式输出**：JSON（默认）+ CSV + HTML，`--dry-run` 只打印不写文件
-- **Web 可视化界面**：`index.html` 浏览器直接打开，拖拽导入 JSON，支持 Worker 异步解析超大文件、智能标记、导出删除清单
+- **多格式输出**：JSON（默认带时间戳 `dup_result_YYYYMMDD_HHMMSS.json`，避免覆盖）+ CSV + HTML，`--dry-run` 只打印不写文件
+- **Web 可视化界面**：`index.html` 浏览器直接打开，拖拽导入 JSON，Worker 异步解析超大文件、分页浏览（13 万组也流畅）、6 套推荐保留策略实时切换、分类筛选、导出删除清单
 - **多排除关键字**：`--exclude-dir` 可多次指定，空串显式关闭
 - **可控并发**：`--workers N` 指定线程池大小，`tqdm` 进度条（若已安装）
 - **失败溯源**：读取失败记录原因（`parse_error / no_tracks / missing_file_size / missing_duration`），结束时按原因聚合计数
@@ -241,26 +241,32 @@ video_bitrate | audio_bitrate | format
 
 ### 快速使用
 
-1. 运行扫描得到 JSON：
+1. 运行扫描得到 JSON（默认输出 `dup_result_YYYYMMDD_HHMMSS.json`，自动带时间戳不覆盖历史）：
    ```bash
+   # 扫描 G-U 全部盘符
+   python mediadupfinder.py --drives G-U
+   # 或指定文件夹 + 显式输出
    python mediadupfinder.py /some/folder -o result.json
    ```
 
-2. 用浏览器打开 `index.html`，将 `result.json` 拖入页面或点击选择文件即可。
+2. 用浏览器打开 `index.html`，将 JSON 拖入页面或点击选择文件即可。
+
+> 建议用 `python -m http.server 8000` 起本地服务后访问 `http://localhost:8000/index.html`，`file://` 协议下部分浏览器 Worker 可能静默失败（已做 5 秒超时自动回退主线程的兜底）。
 
 ### 功能特性
 
 | 特性 | 说明 |
 |------|------|
 | **拖拽导入** | 支持拖拽或点击选择 JSON 文件 |
-| **Worker 解析** | 小文件（< 200MB）走 Web Worker 后台解析；大文件自动走流式 Worker |
-| **流式 Worker** | 分块读取 + 正则提取 `strong_candidates`，避免一次性 `JSON.parse` 内存爆炸 |
-| **智能降级** | Worker 120 秒超时自动回退主线程解析 |
-| **分批渲染** | 超过 200 组时按 50 组一批渲染，保持页面流畅 |
-| **统计卡片** | 重复分组数、可释放空间、平均浪费、最大浪费组 |
-| **搜索 / 筛选** | 按文件名、路径搜索，按重复原因筛选 |
+| **Worker 解析** | 全部在 Worker 里跑 `JSON.parse`，不阻塞主线程 |
+| **智能降级** | Worker 5 秒无响应立即回退主线程（`file://` 协议友好），120 秒硬超时兜底 |
+| **分页浏览** | 每页 50 组，上一页/下一页/页码/省略号，浏览 13 万组也流畅 |
+| **统计卡片** | 重复分组数（含强/中/弱各档明细）、可释放空间、平均浪费、最大浪费组 |
+| **搜索 / 筛选** | 按文件名、路径搜索；按重复原因筛选；按分类（强/中/弱候选）筛选 |
+| **分组分类** | 每组 header 显示彩色分类 badge |
 | **折叠 / 展开** | 全部展开 / 全部折叠，记住手动展开的组 |
-| **智能标记** | 每组自动高亮"建议保留"文件，支持"除保留外全选删除" |
+| **推荐保留策略** | 下拉切换 6 套打分方案（分辨率→码率→大小 / 大小优先 / 码率优先…），实时重算高亮 |
+| **智能标记** | 一键"除推荐保留外全选删除"，或逐组手动切换 |
 | **删除清单导出** | 标记后可导出 TXT / CSV / JSON 三种格式 |
 
 ### 文件说明
@@ -268,10 +274,8 @@ video_bitrate | audio_bitrate | format
 | 文件 | 作用 |
 |------|------|
 | `index.html` | 主界面，单文件含全部 HTML / CSS / 主线程 JS |
-| `worker-json.js` | 小文件 Worker，完整读取后 `JSON.parse` |
-| `worker-stream.js` | 大文件流式 Worker，分块读取 + 正则提取 `strong_candidates` |
-
-> **注意**：部分浏览器（如 Firefox）要求 Web Worker 通过 `http://` 或 `https://` 协议加载，直接 `file://` 打开 `index.html` 可能导致 Worker 创建失败。Chrome / Edge 通常无此问题。如需本地服务，可运行 `python -m http.server` 然后访问 `http://localhost:8000/index.html`。
+| `worker-json.js` | Worker，`file.text()` + `JSON.parse`，结果一次性返回主线程 |
+| `worker-stream.js` | 大文件 Worker（≥ 200MB），同样走 `JSON.parse`（Worker 里跑不阻塞主线程） |
 
 ---
 
