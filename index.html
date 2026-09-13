@@ -161,6 +161,14 @@ select{background:var(--card);border:1px solid var(--border);border-radius:8px;p
       <option value="mid">中候选</option>
       <option value="weak">弱候选</option>
     </select>
+    <select id="keepStrategy" title="推荐保留策略">
+      <option value="res_br_size">分辨率 → 码率 → 大小（默认）</option>
+      <option value="size_res_br">大小 → 分辨率 → 码率（大文件优先）</option>
+      <option value="br_res_size">码率 → 分辨率 → 大小（高码率优先）</option>
+      <option value="res_size_br">分辨率 → 大小 → 码率（画质面积优先）</option>
+      <option value="br_size_res">码率 → 大小 → 分辨率</option>
+      <option value="size_br_res">大小 → 码率 → 分辨率</option>
+    </select>
     <button class="btn btn-sm" onclick="expandAll()">全部展开</button>
     <button class="btn btn-sm" onclick="collapseAll()">全部折叠</button>
     <button class="btn btn-sm btn-danger" onclick="clearAllMarks()">清空标记</button>
@@ -326,6 +334,7 @@ function handleParsed(data, file, workerType){
 
   hideProgress();
   document.getElementById('dropZone').style.display = 'none';
+  recalcSuggested();
   initUI();
   renderAll();
 }
@@ -350,10 +359,37 @@ function initUI(){
   });
   sel.onchange = renderGroups;
   document.getElementById('filterCat').onchange = renderGroups;
+  document.getElementById('keepStrategy').onchange = ()=>{ recalcSuggested(); renderAll(); };
   document.getElementById('stats').style.display='grid';
   document.getElementById('toolbar').style.display='flex';
   document.getElementById('stats').innerHTML = buildStats();
   document.getElementById('search').oninput = ()=>{ currentPage=1; renderGroups(); };
+}
+
+const KEEP_STRATEGIES = {
+  res_br_size: f => [f.width*f.height, f.video_bitrate+f.audio_bitrate, f.size],
+  size_res_br: f => [f.size, f.width*f.height, f.video_bitrate+f.audio_bitrate],
+  br_res_size: f => [f.video_bitrate+f.audio_bitrate, f.width*f.height, f.size],
+  res_size_br: f => [f.width*f.height, f.size, f.video_bitrate+f.audio_bitrate],
+  br_size_res: f => [f.video_bitrate+f.audio_bitrate, f.size, f.width*f.height],
+  size_br_res: f => [f.size, f.video_bitrate+f.audio_bitrate, f.width*f.height],
+};
+
+function recalcSuggested(){
+  const strat = document.getElementById('keepStrategy').value;
+  const scoreFn = KEEP_STRATEGIES[strat] || KEEP_STRATEGIES.res_br_size;
+  for(const g of groups){
+    if(!g.files || !g.files.length){ g.suggested_keep = ''; continue; }
+    let best = g.files[0], bestKey = scoreFn(best);
+    for(let i=1;i<g.files.length;i++){
+      const f = g.files[i], k = scoreFn(f);
+      if(k[0]>bestKey[0] || (k[0]===bestKey[0] && k[1]>bestKey[1]) ||
+         (k[0]===bestKey[0] && k[1]===bestKey[1] && k[2]>bestKey[2])){
+        best=f; bestKey=k;
+      }
+    }
+    g.suggested_keep = best.path;
+  }
 }
 
 function buildStats(){
