@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 set "PATH=%PATH%;C:\Program Files\MediaInfo"
 title Media Duplicate Finder
 
