@@ -446,13 +446,13 @@ def scan_folder(roots, min_size_bytes=0, exclude_dir_keywords=None,
                         })
                     _cb("parse", count, total_candidates,
                         f"正在解析 {root} 第 {count}/{total_candidates} 个：{name}"
-                        + (f"（失败 {failed_count}）" if failed_count else "")
+                        + (f"（累计失败 {failed_count}）" if failed_count else "")
                         + (f"（缓存命中 {cache_hits}）" if cache_hits else ""))
 
             drive_elapsed = time.time() - drive_start
             drive_fps = drive_ok / drive_elapsed if drive_elapsed > 0 else 0
-            print(f"  盘符完成: {root}  共 {drive_ok} 个文件"
-                  + (f"  {drive_fail} 失败" if drive_fail else "")
+            print(f"  盘符完成: {root}  成功 {drive_ok}"
+                  + (f"  本盘失败 {drive_fail}" if drive_fail else "")
                   + f"  耗时 {drive_elapsed:.1f}s  ({drive_fps:.1f} 文件/秒)\n")
 
             if _cancelled():
@@ -473,16 +473,18 @@ def scan_folder(roots, min_size_bytes=0, exclude_dir_keywords=None,
 
     total_elapsed = time.time() - start_time
     if total_elapsed > 0:
-        print(f"共读取 {count} 个文件  失败 {failed_count}  "
+        print(f"共读取 {total_candidates} 个候选  成功 {count}"
+              + (f"（其中缓存命中 {cache_hits}）" if cache_hits else "")
+              + f"  累计失败 {failed_count}  "
               f"总耗时 {total_elapsed:.1f}s  "
-              f"({count / total_elapsed:.1f} 文件/秒)"
-              + (f"  缓存命中 {cache_hits}" if cache_hits else ""))
+              f"({count / total_elapsed:.1f} 文件/秒)")
     if _cancelled():
         _cb("parse", count, total_candidates, f"已取消：已成功解析 {count} 个文件")
     else:
         _cb("parse", count, total_candidates,
-            f"解析完成: 成功 {count}，失败 {failed_count}"
-            + (f"，缓存命中 {cache_hits}" if cache_hits else ""))
+            f"解析完成: 成功 {count}"
+            + (f"（其中缓存命中 {cache_hits}）" if cache_hits else "")
+            + f"，失败 {failed_count}")
     return metas, failed, scanned_roots
 
 
